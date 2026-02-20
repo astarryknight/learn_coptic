@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email == 'whiteh4tter@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    function currentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function currentUserOrgId() {
+      return currentUserDoc().data.organizationId;
+    }
+
+    function sameOrganizationAsCurrentUser() {
+      return isSignedIn()
+        && currentUserDoc().exists()
+        && currentUserOrgId() is string
+        && resource.data.organizationId == currentUserOrgId();
+    }
+
+    function validNewUserProfile(userId) {
+      return request.resource.data.keys().hasOnly([
+        'name',
+        'email',
+        'photoURL',
+        'organizationId',
+        'organizationName',
+        'xp',
+        'level',
+        'createdAt',
+        'lastActive',
+      ])
+      && request.resource.data.name is string
+      && (request.resource.data.email == null || request.resource.data.email is string)
+      && (request.resource.data.photoURL == null || request.resource.data.photoURL is string)
+      && request.resource.data.organizationId == null
+      && request.resource.data.organizationName == null
+      && request.resource.data.xp is number
+      && request.resource.data.level is number
+      && request.resource.data.xp >= 0
+      && request.resource.data.level >= 1
+      && request.resource.data.createdAt is timestamp
+      && request.resource.data.lastActive is timestamp
+      && isOwner(userId);
+    }
+
+    function validOwnerScoreUpdate() {
+      let xpDelta = request.resource.data.xp - resource.data.xp;
+      return xpDelta >= 0
+        && xpDelta <= 20
+        && request.resource.data.level is number
+        && request.resource.data.level >= resource.data.level
+        && request.resource.data.level <= resource.data.level + 1;
+    }
+
+    function validOwnerOrgSet() {
+      return resource.data.organizationId == null
+        && resource.data.organizationName == null
+        && request.resource.data.organizationId is string
+        && request.resource.data.organizationName is string;
+    }
+
+    function validOwnerUpdate(userId) {
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+      let scoreChanged = changed.hasAny(['xp', 'level']);
+      let orgChanged = changed.hasAny(['organizationId', 'organizationName']);
+
+      return isOwner(userId)
+        && changed.hasOnly(['xp', 'level', 'lastActive', 'organizationId', 'organizationName'])
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.photoURL == resource.data.photoURL
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (!scoreChanged || validOwnerScoreUpdate())
+        && (!orgChanged || validOwnerOrgSet());
+    }
+
+    match /users/{userId} {
+      allow get: if isAdmin() || isOwner(userId) || sameOrganizationAsCurrentUser();
+      allow list: if isAdmin() || sameOrganizationAsCurrentUser();
+      allow create: if validNewUserProfile(userId);
+      allow update: if isAdmin() || validOwnerUpdate(userId);
+      allow delete: if isAdmin();
+    }
+  }
+}

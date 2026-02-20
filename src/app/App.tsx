@@ -3,6 +3,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { Header } from './components/Header';
 import { ActivitySelector, ActivityType } from './components/ActivitySelector';
+import { AdminDashboard } from './components/AdminDashboard';
 import { OrganizationSelector } from './components/OrganizationSelector';
 import { LetterSoundsActivity } from './components/activities/LetterSoundsActivity';
 import { WordPronunciationActivity } from './components/activities/WordPronunciationActivity';
@@ -19,7 +20,8 @@ import {
 import type { UserProfile } from './utils/storage';
 import { auth, signInWithGoogle, signOutUser } from './utils/firebase';
 
-type Screen = 'welcome' | 'organization' | 'activities' | 'activity' | 'completion';
+type Screen = 'welcome' | 'organization' | 'activities' | 'activity' | 'completion' | 'admin';
+const ADMIN_EMAILS = new Set(['whiteh4tter@gmail.com']);
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -30,6 +32,7 @@ export default function App() {
   const [lastXPEarned, setLastXPEarned] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isSavingOrganization, setIsSavingOrganization] = useState(false);
+  const isAdmin = user?.email ? ADMIN_EMAILS.has(user.email.toLowerCase()) : false;
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (authUser) => {
@@ -43,7 +46,14 @@ export default function App() {
       try {
         const profile = await ensureUserProfileFromAuth(authUser);
         setUser(profile);
-        setCurrentScreen(profile.organizationId ? 'activities' : 'organization');
+        const userIsAdmin = profile.email
+          ? ADMIN_EMAILS.has(profile.email.toLowerCase())
+          : false;
+        if (userIsAdmin) {
+          setCurrentScreen('admin');
+        } else {
+          setCurrentScreen(profile.organizationId ? 'activities' : 'organization');
+        }
       } catch (error) {
         console.error('Failed to load user profile:', error);
         setUser(null);
@@ -124,6 +134,12 @@ export default function App() {
     setCurrentScreen('welcome');
   };
 
+  const handleShowAdmin = () => {
+    setShowLeaderboard(false);
+    setCurrentActivity(null);
+    setCurrentScreen('admin');
+  };
+
   const renderActivity = () => {
     const commonProps = {
       onComplete: handleActivityComplete,
@@ -167,10 +183,16 @@ export default function App() {
           <Header
             user={user}
             onShowLeaderboard={() => setShowLeaderboard(true)}
+            onShowAdmin={isAdmin ? handleShowAdmin : undefined}
+            showAdminButton={isAdmin}
             onSignOut={handleSignOut}
           />
           <ActivitySelector onSelectActivity={handleSelectActivity} />
         </>
+      )}
+
+      {!isAuthLoading && currentScreen === 'admin' && isAdmin && (
+        <AdminDashboard onBack={() => setCurrentScreen('activities')} />
       )}
 
       {!isAuthLoading && currentScreen === 'activity' && renderActivity()}

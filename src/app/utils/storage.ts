@@ -107,6 +107,19 @@ export function subscribeToUserProfile(
   });
 }
 
+export function subscribeToAllUsers(
+  onUpdate: (profiles: UserProfile[]) => void,
+) {
+  const usersQuery = query(collection(db, USERS_COLLECTION));
+
+  return onSnapshot(usersQuery, (snapshot) => {
+    const profiles = snapshot.docs
+      .map((entry) => mapUserProfile(entry.id, entry.data() as Record<string, unknown>))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    onUpdate(profiles);
+  });
+}
+
 export async function addXP(
   uid: string,
   amount: number,
@@ -154,6 +167,14 @@ export async function setUserOrganization(
   const updated = await getDoc(userRef);
   if (!updated.exists()) throw new Error('No user profile found');
   return mapUserProfile(updated.id, updated.data() as Record<string, unknown>);
+}
+
+export async function assignUserToOrganization(
+  uid: string,
+  organizationId: string,
+  organizationName: string,
+): Promise<UserProfile> {
+  return setUserOrganization(uid, organizationId, organizationName);
 }
 
 function mapLeaderboardEntry(entryId: string, data: Record<string, unknown>): LeaderboardEntry {

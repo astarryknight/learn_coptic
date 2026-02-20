@@ -37,7 +37,20 @@ Push to `main` and GitHub will publish your site at your Pages URL.
 
 ## Firestore security rules (recommended)
 
-Use rules like this so authenticated users can read leaderboard data, and only edit their own profile document:
+This repository now includes `firestore.rules` with:
+- Admin access for `whiteh4tter@gmail.com`
+- Organization-scoped leaderboard/profile reads
+- Admin-only user reassignment across organizations
+- Limited self-updates for user progress and initial org selection
+
+Deploy rules with Firebase CLI:
+
+1. Install CLI (if needed): `npm i -g firebase-tools`
+2. Login: `firebase login`
+3. Select project: `firebase use <your-project-id>`
+4. Deploy rules: `firebase deploy --only firestore:rules`
+
+Previous baseline example:
 
 ```txt
 rules_version = '2';

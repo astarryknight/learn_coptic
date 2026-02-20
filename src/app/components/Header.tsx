@@ -5,10 +5,18 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 interface HeaderProps {
   user: UserProfile | null;
   onShowLeaderboard: () => void;
+  onShowAdmin?: () => void;
+  showAdminButton?: boolean;
   onSignOut: () => Promise<void>;
 }
 
-export function Header({ user, onShowLeaderboard, onSignOut }: HeaderProps) {
+export function Header({
+  user,
+  onShowLeaderboard,
+  onShowAdmin,
+  showAdminButton = false,
+  onSignOut,
+}: HeaderProps) {
   if (!user) return null;
 
   return (
@@ -43,6 +51,15 @@ export function Header({ user, onShowLeaderboard, onSignOut }: HeaderProps) {
             <Trophy className="w-4 h-4 md:w-5 md:h-5" />
             <span className="font-bold text-xs md:text-base hidden sm:inline">Leaderboard</span>
           </button>
+
+          {showAdminButton && onShowAdmin ? (
+            <button
+              onClick={onShowAdmin}
+              className="flex items-center gap-1.5 md:gap-2 bg-white/20 backdrop-blur-sm rounded-full px-2 md:px-4 py-1.5 md:py-2 hover:bg-white/30 transition-colors"
+            >
+              <span className="font-bold text-xs md:text-base">Admin</span>
+            </button>
+          ) : null}
 
           <button
             onClick={() => void onSignOut()}
