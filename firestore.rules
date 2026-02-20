@@ -94,5 +94,10 @@ service cloud.firestore {
       allow update: if isAdmin() || validOwnerUpdate(userId);
       allow delete: if isAdmin();
     }
+
+    match /organizations/{organizationId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
   }
 }

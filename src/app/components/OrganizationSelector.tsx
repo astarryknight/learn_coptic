@@ -1,12 +1,12 @@
 import { Building2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
-import type { OrganizationOption } from '../data/organizations';
+import type { Organization } from '../utils/storage';
 
 interface OrganizationSelectorProps {
-  organizations: OrganizationOption[];
+  organizations: Organization[];
   isSaving: boolean;
-  onSelect: (organization: OrganizationOption) => Promise<void>;
+  onSelect: (organization: Organization) => Promise<void>;
 }
 
 export function OrganizationSelector({

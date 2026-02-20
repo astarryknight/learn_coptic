@@ -4,29 +4,35 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Progress } from './ui/progress';
-import { organizations } from '../data/organizations';
-import type { OrganizationOption } from '../data/organizations';
 import {
   assignUserToOrganization,
+  createOrganization,
+  deleteOrganization,
   subscribeToAllUsers,
+  type Organization,
   type UserProfile,
 } from '../utils/storage';
 
 interface AdminDashboardProps {
   onBack: () => void;
+  organizations: Organization[];
 }
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString();
 }
 
-export function AdminDashboard({ onBack }: AdminDashboardProps) {
+export function AdminDashboard({ onBack, organizations }: AdminDashboardProps) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [draftOrganizationByUser, setDraftOrganizationByUser] = useState<Record<string, string>>({});
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [newOrganizationName, setNewOrganizationName] = useState('');
+  const [newOrganizationDescription, setNewOrganizationDescription] = useState('');
+  const [isCreatingOrganization, setIsCreatingOrganization] = useState(false);
+  const [deletingOrganizationId, setDeletingOrganizationId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = subscribeToAllUsers((profiles) => {
@@ -79,10 +85,40 @@ export function AdminDashboard({ onBack }: AdminDashboardProps) {
     }
   };
 
-  const currentOrganization = (user: UserProfile): OrganizationOption | null =>
+  const currentOrganization = (user: UserProfile): Organization | null =>
     organizations.find((org) => org.id === getDraftOrganizationId(user)) || null;
 
   const progressPercent = selectedUser ? (selectedUser.xp % 100) : 0;
+
+  const handleCreateOrganization = async () => {
+    try {
+      setIsCreatingOrganization(true);
+      await createOrganization(newOrganizationName, newOrganizationDescription);
+      setNewOrganizationName('');
+      setNewOrganizationDescription('');
+    } catch (error) {
+      console.error('Failed to create organization:', error);
+    } finally {
+      setIsCreatingOrganization(false);
+    }
+  };
+
+  const handleDeleteOrganization = async (organization: Organization) => {
+    const hasUsers = users.some((user) => user.organizationId === organization.id);
+    if (hasUsers) {
+      console.error('Cannot delete organization with assigned users');
+      return;
+    }
+
+    try {
+      setDeletingOrganizationId(organization.id);
+      await deleteOrganization(organization.id);
+    } catch (error) {
+      console.error('Failed to delete organization:', error);
+    } finally {
+      setDeletingOrganizationId(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 md:p-6">
@@ -250,6 +286,61 @@ export function AdminDashboard({ onBack }: AdminDashboardProps) {
             )}
           </Card>
         </div>
+
+        <Card className="p-4 md:p-5 bg-white">
+          <h2 className="text-lg font-bold text-slate-800 mb-3">Organizations</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2 mb-4">
+            <input
+              value={newOrganizationName}
+              onChange={(event) => setNewOrganizationName(event.target.value)}
+              placeholder="Organization name"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            />
+            <input
+              value={newOrganizationDescription}
+              onChange={(event) => setNewOrganizationDescription(event.target.value)}
+              placeholder="Description (optional)"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            />
+            <Button
+              type="button"
+              onClick={() => void handleCreateOrganization()}
+              disabled={isCreatingOrganization || !newOrganizationName.trim()}
+              className="bg-slate-700 hover:bg-slate-800"
+            >
+              {isCreatingOrganization ? 'Creating...' : 'Create'}
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {organizations.map((organization) => {
+              const hasUsers = users.some((user) => user.organizationId === organization.id);
+              const isDeleting = deletingOrganizationId === organization.id;
+              return (
+                <div
+                  key={organization.id}
+                  className="rounded-lg border border-slate-200 p-3 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-800 truncate">{organization.name}</p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {organization.description || 'No description'}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void handleDeleteOrganization(organization)}
+                    disabled={isDeleting || hasUsers}
+                  >
+                    {isDeleting ? 'Deleting...' : 'Delete'}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       </div>
     </div>
   );

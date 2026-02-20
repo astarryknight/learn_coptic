@@ -10,12 +10,13 @@ import { WordPronunciationActivity } from './components/activities/WordPronuncia
 import { LetterRecognitionActivity } from './components/activities/LetterRecognitionActivity';
 import { CompletionScreen } from './components/CompletionScreen';
 import { Leaderboard } from './components/Leaderboard';
-import { organizations } from './data/organizations';
 import {
   addXP,
   ensureUserProfileFromAuth,
   setUserOrganization,
+  subscribeToOrganizations,
   subscribeToUserProfile,
+  type Organization,
 } from './utils/storage';
 import type { UserProfile } from './utils/storage';
 import { auth, signInWithGoogle, signOutUser } from './utils/firebase';
@@ -32,6 +33,7 @@ export default function App() {
   const [lastXPEarned, setLastXPEarned] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isSavingOrganization, setIsSavingOrganization] = useState(false);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const isAdmin = user?.email ? ADMIN_EMAILS.has(user.email.toLowerCase()) : false;
 
   useEffect(() => {
@@ -67,6 +69,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const unsubscribeOrganizations = subscribeToOrganizations((nextOrganizations) => {
+      setOrganizations(nextOrganizations);
+    });
+
+    return () => unsubscribeOrganizations();
+  }, []);
+
+  useEffect(() => {
     if (!user?.uid) return;
 
     const unsubscribeProfile = subscribeToUserProfile(user.uid, (profile) => {
@@ -94,7 +104,7 @@ export default function App() {
     setCurrentScreen('activity');
   };
 
-  const handleSelectOrganization = async (organization: (typeof organizations)[number]) => {
+  const handleSelectOrganization = async (organization: Organization) => {
     if (!user) return;
 
     try {
@@ -192,7 +202,10 @@ export default function App() {
       )}
 
       {!isAuthLoading && currentScreen === 'admin' && isAdmin && (
-        <AdminDashboard onBack={() => setCurrentScreen('activities')} />
+        <AdminDashboard
+          onBack={() => setCurrentScreen('activities')}
+          organizations={organizations}
+        />
       )}
 
       {!isAuthLoading && currentScreen === 'activity' && renderActivity()}

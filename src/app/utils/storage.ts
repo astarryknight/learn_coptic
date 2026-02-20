@@ -1,6 +1,8 @@
 import type { User as FirebaseUser } from 'firebase/auth';
 import {
+  addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -36,7 +38,14 @@ export interface LeaderboardEntry {
   level: number;
 }
 
+export interface Organization {
+  id: string;
+  name: string;
+  description: string;
+}
+
 const USERS_COLLECTION = 'users';
+const ORGANIZATIONS_COLLECTION = 'organizations';
 
 function timestampToIso(value: unknown): string {
   if (value instanceof Timestamp) return value.toDate().toISOString();
@@ -65,6 +74,18 @@ function mapUserProfile(uid: string, data: Record<string, unknown>): UserProfile
 
 function userDocRef(uid: string) {
   return doc(db, USERS_COLLECTION, uid);
+}
+
+function organizationDocRef(organizationId: string) {
+  return doc(db, ORGANIZATIONS_COLLECTION, organizationId);
+}
+
+function mapOrganization(id: string, data: Record<string, unknown>): Organization {
+  return {
+    id,
+    name: typeof data.name === 'string' ? data.name : 'Unnamed Organization',
+    description: typeof data.description === 'string' ? data.description : '',
+  };
 }
 
 export async function ensureUserProfileFromAuth(authUser: FirebaseUser): Promise<UserProfile> {
@@ -118,6 +139,44 @@ export function subscribeToAllUsers(
       .sort((a, b) => a.name.localeCompare(b.name));
     onUpdate(profiles);
   });
+}
+
+export function subscribeToOrganizations(
+  onUpdate: (organizations: Organization[]) => void,
+) {
+  const organizationsQuery = query(collection(db, ORGANIZATIONS_COLLECTION));
+
+  return onSnapshot(organizationsQuery, (snapshot) => {
+    const organizations = snapshot.docs
+      .map((entry) => mapOrganization(entry.id, entry.data() as Record<string, unknown>))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    onUpdate(organizations);
+  });
+}
+
+export async function createOrganization(
+  name: string,
+  description: string,
+): Promise<Organization> {
+  const trimmedName = name.trim();
+  const trimmedDescription = description.trim();
+  if (!trimmedName) throw new Error('Organization name is required');
+
+  const createdRef = await addDoc(collection(db, ORGANIZATIONS_COLLECTION), {
+    name: trimmedName,
+    description: trimmedDescription,
+    createdAt: serverTimestamp(),
+  });
+
+  const created = await getDoc(createdRef);
+  if (!created.exists()) throw new Error('Failed to create organization');
+  return mapOrganization(created.id, created.data() as Record<string, unknown>);
+}
+
+export async function deleteOrganization(
+  organizationId: string,
+): Promise<void> {
+  await deleteDoc(organizationDocRef(organizationId));
 }
 
 export async function addXP(
