@@ -65,6 +65,9 @@ export const copticWords: CopticWord[] = [
   { coptic: 'ⲥⲓⲟⲩ', english: 'star', pronunciation: 'see-ou', difficulty: 'medium' },
   { coptic: 'ⲕⲁϩⲓ', english: 'earth', pronunciation: 'kah-hee', difficulty: 'medium' },
   { coptic: 'ϣⲟⲙⲧ', english: 'three', pronunciation: 'sho-mt', difficulty: 'medium' },
+  { coptic: 'ⲁⲝⲓⲟⲥ', english: 'worth', pronunciation: 'a-xee-os', difficulty: 'medium' },
+  { coptic: 'ⲉϩⲟⲟⲩ', english: 'day', pronunciation: 'eh-oo-ou', difficulty: 'medium' },
+  { coptic: 'ⲣⲟⲙⲡⲓ', english: 'year', pronunciation: 'ro-m-pi', difficulty: 'medium' },
 
   // Hard words (6+ letters)
   { coptic: 'ϩⲓⲣⲏⲛⲏ', english: 'peace', pronunciation: 'hee-ree-nee', difficulty: 'hard' },

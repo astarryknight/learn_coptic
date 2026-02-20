@@ -5,14 +5,13 @@ import {
   getDoc,
   getDocs,
   increment,
-  limit,
   onSnapshot,
-  orderBy,
   query,
   runTransaction,
   serverTimestamp,
   setDoc,
   Timestamp,
+  where,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -21,6 +20,8 @@ export interface UserProfile {
   name: string;
   email: string | null;
   photoURL: string | null;
+  organizationId: string | null;
+  organizationName: string | null;
   xp: number;
   level: number;
   createdAt: string;
@@ -53,6 +54,8 @@ function mapUserProfile(uid: string, data: Record<string, unknown>): UserProfile
     name: typeof data.name === 'string' ? data.name : 'Learner',
     email: typeof data.email === 'string' ? data.email : null,
     photoURL: typeof data.photoURL === 'string' ? data.photoURL : null,
+    organizationId: typeof data.organizationId === 'string' ? data.organizationId : null,
+    organizationName: typeof data.organizationName === 'string' ? data.organizationName : null,
     xp,
     level: typeof data.level === 'number' ? data.level : calculateLevel(xp),
     createdAt: timestampToIso(data.createdAt),
@@ -77,6 +80,8 @@ export async function ensureUserProfileFromAuth(authUser: FirebaseUser): Promise
     name: authUser.displayName || 'Learner',
     email: authUser.email || null,
     photoURL: authUser.photoURL || null,
+    organizationId: null,
+    organizationName: null,
     xp: initialXP,
     level: calculateLevel(initialXP),
     createdAt: serverTimestamp(),
@@ -129,49 +134,75 @@ export async function addXP(
   return mapUserProfile(updated.id, updated.data() as Record<string, unknown>);
 }
 
-export async function getLeaderboard(limitCount = 100): Promise<LeaderboardEntry[]> {
+export async function setUserOrganization(
+  uid: string,
+  organizationId: string,
+  organizationName: string,
+): Promise<UserProfile> {
+  const userRef = userDocRef(uid);
+
+  await setDoc(
+    userRef,
+    {
+      organizationId,
+      organizationName,
+      lastActive: serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  const updated = await getDoc(userRef);
+  if (!updated.exists()) throw new Error('No user profile found');
+  return mapUserProfile(updated.id, updated.data() as Record<string, unknown>);
+}
+
+function mapLeaderboardEntry(entryId: string, data: Record<string, unknown>): LeaderboardEntry {
+  const xp = typeof data.xp === 'number' ? data.xp : 0;
+  return {
+    uid: entryId,
+    name: typeof data.name === 'string' ? data.name : 'Learner',
+    photoURL: typeof data.photoURL === 'string' ? data.photoURL : null,
+    xp,
+    level: typeof data.level === 'number' ? data.level : calculateLevel(xp),
+  };
+}
+
+function sortAndTrimLeaderboard(entries: LeaderboardEntry[], limitCount: number) {
+  return entries
+    .sort((a, b) => b.xp - a.xp)
+    .slice(0, limitCount);
+}
+
+export async function getLeaderboard(
+  organizationId: string,
+  limitCount = 100,
+): Promise<LeaderboardEntry[]> {
   const leaderboardQuery = query(
     collection(db, USERS_COLLECTION),
-    orderBy('xp', 'desc'),
-    limit(limitCount),
+    where('organizationId', '==', organizationId),
   );
   const snapshots = await getDocs(leaderboardQuery);
 
-  return snapshots.docs.map((entry) => {
-    const data = entry.data() as Record<string, unknown>;
-    const xp = typeof data.xp === 'number' ? data.xp : 0;
-    return {
-      uid: entry.id,
-      name: typeof data.name === 'string' ? data.name : 'Learner',
-      photoURL: typeof data.photoURL === 'string' ? data.photoURL : null,
-      xp,
-      level: typeof data.level === 'number' ? data.level : calculateLevel(xp),
-    };
-  });
+  const entries = snapshots.docs.map((entry) =>
+    mapLeaderboardEntry(entry.id, entry.data() as Record<string, unknown>),
+  );
+  return sortAndTrimLeaderboard(entries, limitCount);
 }
 
 export function subscribeToLeaderboard(
+  organizationId: string,
   onUpdate: (entries: LeaderboardEntry[]) => void,
   limitCount = 100,
 ) {
   const leaderboardQuery = query(
     collection(db, USERS_COLLECTION),
-    orderBy('xp', 'desc'),
-    limit(limitCount),
+    where('organizationId', '==', organizationId),
   );
 
   return onSnapshot(leaderboardQuery, (snapshot) => {
-    const entries = snapshot.docs.map((entry) => {
-      const data = entry.data() as Record<string, unknown>;
-      const xp = typeof data.xp === 'number' ? data.xp : 0;
-      return {
-        uid: entry.id,
-        name: typeof data.name === 'string' ? data.name : 'Learner',
-        photoURL: typeof data.photoURL === 'string' ? data.photoURL : null,
-        xp,
-        level: typeof data.level === 'number' ? data.level : calculateLevel(xp),
-      };
-    });
-    onUpdate(entries);
+    const entries = snapshot.docs.map((entry) =>
+      mapLeaderboardEntry(entry.id, entry.data() as Record<string, unknown>),
+    );
+    onUpdate(sortAndTrimLeaderboard(entries, limitCount));
   });
 }

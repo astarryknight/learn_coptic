@@ -23,7 +23,9 @@ export function Header({ user, onShowLeaderboard, onSignOut }: HeaderProps) {
           </Avatar>
           <div className="min-w-0">
             <h2 className="font-bold text-sm md:text-lg truncate">{user.name}</h2>
-            <p className="text-xs md:text-sm text-white/90">Level {user.level}</p>
+            <p className="text-xs md:text-sm text-white/90 truncate">
+              {user.organizationName || 'No organization'} · Level {user.level}
+            </p>
           </div>
         </div>
 

@@ -3,20 +3,23 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { Header } from './components/Header';
 import { ActivitySelector, ActivityType } from './components/ActivitySelector';
+import { OrganizationSelector } from './components/OrganizationSelector';
 import { LetterSoundsActivity } from './components/activities/LetterSoundsActivity';
 import { WordPronunciationActivity } from './components/activities/WordPronunciationActivity';
 import { LetterRecognitionActivity } from './components/activities/LetterRecognitionActivity';
 import { CompletionScreen } from './components/CompletionScreen';
 import { Leaderboard } from './components/Leaderboard';
+import { organizations } from './data/organizations';
 import {
   addXP,
   ensureUserProfileFromAuth,
+  setUserOrganization,
   subscribeToUserProfile,
 } from './utils/storage';
 import type { UserProfile } from './utils/storage';
 import { auth, signInWithGoogle, signOutUser } from './utils/firebase';
 
-type Screen = 'welcome' | 'activities' | 'activity' | 'completion';
+type Screen = 'welcome' | 'organization' | 'activities' | 'activity' | 'completion';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -26,6 +29,7 @@ export default function App() {
   const [currentActivity, setCurrentActivity] = useState<ActivityType | null>(null);
   const [lastXPEarned, setLastXPEarned] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [isSavingOrganization, setIsSavingOrganization] = useState(false);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (authUser) => {
@@ -39,7 +43,7 @@ export default function App() {
       try {
         const profile = await ensureUserProfileFromAuth(authUser);
         setUser(profile);
-        setCurrentScreen('activities');
+        setCurrentScreen(profile.organizationId ? 'activities' : 'organization');
       } catch (error) {
         console.error('Failed to load user profile:', error);
         setUser(null);
@@ -78,6 +82,21 @@ export default function App() {
   const handleSelectActivity = (activity: ActivityType) => {
     setCurrentActivity(activity);
     setCurrentScreen('activity');
+  };
+
+  const handleSelectOrganization = async (organization: (typeof organizations)[number]) => {
+    if (!user) return;
+
+    try {
+      setIsSavingOrganization(true);
+      const updatedUser = await setUserOrganization(user.uid, organization.id, organization.name);
+      setUser(updatedUser);
+      setCurrentScreen('activities');
+    } catch (error) {
+      console.error('Failed to set organization:', error);
+    } finally {
+      setIsSavingOrganization(false);
+    }
   };
 
   const handleActivityComplete = async (xpEarned: number) => {
@@ -135,6 +154,14 @@ export default function App() {
         <WelcomeScreen onStart={handleStartApp} isLoading={isSigningIn} />
       )}
 
+      {!isAuthLoading && currentScreen === 'organization' && (
+        <OrganizationSelector
+          organizations={organizations}
+          isSaving={isSavingOrganization}
+          onSelect={handleSelectOrganization}
+        />
+      )}
+
       {!isAuthLoading && currentScreen === 'activities' && (
         <>
           <Header
@@ -157,7 +184,11 @@ export default function App() {
       )}
 
       {showLeaderboard && (
-        <Leaderboard onClose={() => setShowLeaderboard(false)} />
+        <Leaderboard
+          onClose={() => setShowLeaderboard(false)}
+          organizationId={user?.organizationId || ''}
+          organizationName={user?.organizationName || ''}
+        />
       )}
     </div>
   );

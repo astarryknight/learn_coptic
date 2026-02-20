@@ -9,19 +9,27 @@ import type { LeaderboardEntry } from '../utils/storage';
 
 interface LeaderboardProps {
   onClose: () => void;
+  organizationId: string;
+  organizationName: string;
 }
 
-export function Leaderboard({ onClose }: LeaderboardProps) {
+export function Leaderboard({ onClose, organizationId, organizationName }: LeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = subscribeToLeaderboard((entries) => {
+    if (!organizationId) {
+      setLeaderboard([]);
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = subscribeToLeaderboard(organizationId, (entries) => {
       setLeaderboard(entries);
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [organizationId]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -60,7 +68,7 @@ export function Leaderboard({ onClose }: LeaderboardProps) {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-3xl font-bold text-slate-800">
-                Global Leaderboard
+                {organizationName || 'Organization'} Leaderboard
               </h2>
             </div>
             <Button
