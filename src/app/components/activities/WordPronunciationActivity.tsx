@@ -114,7 +114,7 @@ export function WordPronunciationActivity({ onComplete, onBack }: WordPronunciat
             className="mb-5 md:mb-8"
           >
             <div className="inline-block bg-slate-700 rounded-2xl md:rounded-3xl p-5 md:p-8 shadow-lg max-w-full">
-              <div className="text-5xl sm:text-6xl md:text-7xl mb-3 md:mb-4 text-white font-bold break-all">
+              <div className="coptic-text text-5xl sm:text-6xl md:text-7xl mb-3 md:mb-4 text-white font-bold break-all">
                 {currentWord.coptic}
               </div>
               <div className="bg-white/20 backdrop-blur-sm rounded-full px-3 md:px-4 py-2 inline-block">

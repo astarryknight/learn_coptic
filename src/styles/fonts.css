@@ -1,0 +1,11 @@
+@font-face {
+  font-family: 'Coptic1';
+  src: url('../../Coptic1.otf') format('opentype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+.coptic-text {
+  font-family: 'Coptic1', serif;
+}

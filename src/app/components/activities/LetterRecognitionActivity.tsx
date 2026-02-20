@@ -131,7 +131,7 @@ export function LetterRecognitionActivity({ onComplete, onBack }: LetterRecognit
                 } ${selectedAnswer !== null ? 'cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 <div className="flex flex-col items-center justify-center h-full">
-                  <div>{option.letter}</div>
+                  <div className="coptic-text">{option.letter}</div>
                   {selectedAnswer === option.letter && (
                     <motion.div
                       initial={{ scale: 0 }}
@@ -163,7 +163,10 @@ export function LetterRecognitionActivity({ onComplete, onBack }: LetterRecognit
               </p>
               {!isCorrect && (
                 <p className="text-sm mt-1">
-                  The correct letter is: <strong>{targetLetter.letter} ({targetLetter.name})</strong>
+                  The correct letter is:{' '}
+                  <strong>
+                    <span className="coptic-text">{targetLetter.letter}</span> ({targetLetter.name})
+                  </strong>
                 </p>
               )}
             </motion.div>

@@ -105,7 +105,7 @@ export function LetterSoundsActivity({ onComplete, onBack }: LetterSoundsActivit
             className="mb-5 md:mb-8"
           >
             <div className="inline-block bg-slate-700 rounded-2xl md:rounded-3xl p-5 md:p-8 shadow-lg">
-              <div className="text-6xl md:text-8xl mb-3 md:mb-4 text-white font-bold">
+              <div className="coptic-text text-6xl md:text-8xl mb-3 md:mb-4 text-white font-bold">
                 {currentLetter.letter}
               </div>
               <div className="text-white text-lg md:text-xl font-semibold">
