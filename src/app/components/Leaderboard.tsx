@@ -1,22 +1,27 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Trophy, Medal, Crown, X, Calendar } from 'lucide-react';
+import { Trophy, Medal, Crown, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
-import { getLeaderboard, getWeekStart } from '../utils/storage';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { subscribeToLeaderboard } from '../utils/storage';
+import type { LeaderboardEntry } from '../utils/storage';
 
 interface LeaderboardProps {
   onClose: () => void;
 }
 
 export function Leaderboard({ onClose }: LeaderboardProps) {
-  const leaderboard = getLeaderboard();
-  const weekStart = new Date(getWeekStart());
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 6);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
+  useEffect(() => {
+    const unsubscribe = subscribeToLeaderboard((entries) => {
+      setLeaderboard(entries);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -55,12 +60,8 @@ export function Leaderboard({ onClose }: LeaderboardProps) {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-3xl font-bold text-slate-800">
-                Weekly Leaderboard
+                Global Leaderboard
               </h2>
-              <div className="flex items-center gap-2 mt-2 text-sm text-gray-600">
-                <Calendar className="w-4 h-4" />
-                <span>{formatDate(weekStart)} - {formatDate(weekEnd)}</span>
-              </div>
             </div>
             <Button
               onClick={onClose}
@@ -72,15 +73,23 @@ export function Leaderboard({ onClose }: LeaderboardProps) {
             </Button>
           </div>
 
-          {leaderboard.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500 text-lg">Loading leaderboard...</p>
+            </div>
+          ) : null}
+
+          {!loading && leaderboard.length === 0 ? (
             <div className="text-center py-12">
               <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <p className="text-gray-500 text-lg">No entries yet this week!</p>
+              <p className="text-gray-500 text-lg">No entries yet.</p>
               <p className="text-gray-400 text-sm mt-2">
                 Complete activities to appear on the leaderboard
               </p>
             </div>
-          ) : (
+          ) : null}
+
+          {!loading && leaderboard.length > 0 ? (
             <div className="space-y-3">
               {leaderboard.map((entry, index) => (
                 <motion.div
@@ -94,8 +103,19 @@ export function Leaderboard({ onClose }: LeaderboardProps) {
                     {getRankIcon(index + 1)}
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-lg truncate">{entry.name}</h3>
+                  <div className="flex-1 min-w-0 flex items-center gap-3">
+                    <Avatar className="size-10 border border-gray-200">
+                      <AvatarImage src={entry.photoURL || undefined} alt={entry.name} />
+                      <AvatarFallback className="font-semibold">
+                        {entry.name.slice(0, 1).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-lg truncate">{entry.name}</h3>
+                      <p className="text-sm text-gray-600">Level {entry.level}</p>
+                    </div>
+                  </div>
+                  <div>
                     {index < 3 && (
                       <p className="text-sm text-gray-600">
                         {index === 0 ? '👑 Champion' : index === 1 ? '🥈 Runner-up' : '🥉 Third place'}
@@ -111,7 +131,7 @@ export function Leaderboard({ onClose }: LeaderboardProps) {
                 </motion.div>
               ))}
             </div>
-          )}
+          ) : null}
 
           <div className="mt-6 p-4 bg-slate-50 rounded-xl">
             <p className="text-sm text-slate-800 text-center">

@@ -1,22 +1,12 @@
-import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
 
 interface WelcomeScreenProps {
-  onStart: (name: string) => void;
+  onStart: () => Promise<void>;
+  isLoading: boolean;
 }
 
-export function WelcomeScreen({ onStart }: WelcomeScreenProps) {
-  const [name, setName] = useState('');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (name.trim()) {
-      onStart(name.trim());
-    }
-  };
-
+export function WelcomeScreen({ onStart, isLoading }: WelcomeScreenProps) {
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
@@ -32,31 +22,14 @@ export function WelcomeScreen({ onStart }: WelcomeScreenProps) {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="name" className="block text-left mb-2 font-semibold text-gray-700">
-              What's your name?
-            </label>
-            <Input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your name"
-              className="text-center text-lg"
-              maxLength={20}
-              required
-            />
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full bg-slate-700 hover:bg-slate-800 text-white py-6 text-lg font-bold"
-            disabled={!name.trim()}
-          >
-            Start Learning! ✨
-          </Button>
-        </form>
+        <Button
+          type="button"
+          className="w-full bg-slate-700 hover:bg-slate-800 text-white py-6 text-lg font-bold"
+          onClick={onStart}
+          disabled={isLoading}
+        >
+          {isLoading ? 'Signing in...' : 'Continue with Google'}
+        </Button>
 
         <div className="mt-6 grid grid-cols-3 gap-3 text-sm">
           <div className="bg-slate-50 rounded-lg p-3">

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { Header } from './components/Header';
 import { ActivitySelector, ActivityType } from './components/ActivitySelector';
@@ -8,33 +9,70 @@ import { LetterRecognitionActivity } from './components/activities/LetterRecogni
 import { CompletionScreen } from './components/CompletionScreen';
 import { Leaderboard } from './components/Leaderboard';
 import {
-  getUserProfile,
-  createUserProfile,
   addXP,
-  UserProfile,
+  ensureUserProfileFromAuth,
+  subscribeToUserProfile,
 } from './utils/storage';
+import type { UserProfile } from './utils/storage';
+import { auth, signInWithGoogle, signOutUser } from './utils/firebase';
 
 type Screen = 'welcome' | 'activities' | 'activity' | 'completion';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
   const [currentActivity, setCurrentActivity] = useState<ActivityType | null>(null);
   const [lastXPEarned, setLastXPEarned] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   useEffect(() => {
-    const existingUser = getUserProfile();
-    if (existingUser) {
-      setUser(existingUser);
-      setCurrentScreen('activities');
-    }
+    const unsubscribeAuth = onAuthStateChanged(auth, async (authUser) => {
+      if (!authUser) {
+        setUser(null);
+        setCurrentScreen('welcome');
+        setIsAuthLoading(false);
+        return;
+      }
+
+      try {
+        const profile = await ensureUserProfileFromAuth(authUser);
+        setUser(profile);
+        setCurrentScreen('activities');
+      } catch (error) {
+        console.error('Failed to load user profile:', error);
+        setUser(null);
+        setCurrentScreen('welcome');
+      } finally {
+        setIsAuthLoading(false);
+      }
+    });
+
+    return () => unsubscribeAuth();
   }, []);
 
-  const handleStartApp = (name: string) => {
-    const profile = createUserProfile(name);
-    setUser(profile);
-    setCurrentScreen('activities');
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const unsubscribeProfile = subscribeToUserProfile(user.uid, (profile) => {
+      if (profile) {
+        setUser(profile);
+      }
+    });
+
+    return () => unsubscribeProfile();
+  }, [user?.uid]);
+
+  const handleStartApp = async () => {
+    try {
+      setIsSigningIn(true);
+      await signInWithGoogle();
+    } catch (error) {
+      console.error('Google sign-in failed:', error);
+    } finally {
+      setIsSigningIn(false);
+    }
   };
 
   const handleSelectActivity = (activity: ActivityType) => {
@@ -42,15 +80,9 @@ export default function App() {
     setCurrentScreen('activity');
   };
 
-  const handleActivityComplete = (xpEarned: number) => {
-    if (user) {
-      const activityNames = {
-        'letter-sounds': 'Letter Sounds',
-        'word-pronunciation': 'Word Pronunciation',
-        'letter-recognition': 'Letter Recognition',
-      };
-      
-      const updatedUser = addXP(xpEarned, activityNames[currentActivity!]);
+  const handleActivityComplete = async (xpEarned: number) => {
+    if (user && currentActivity) {
+      const updatedUser = await addXP(user.uid, xpEarned);
       setUser(updatedUser);
       setLastXPEarned(xpEarned);
       setCurrentScreen('completion');
@@ -64,6 +96,13 @@ export default function App() {
   const handleBackToActivities = () => {
     setCurrentActivity(null);
     setCurrentScreen('activities');
+  };
+
+  const handleSignOut = async () => {
+    await signOutUser();
+    setShowLeaderboard(false);
+    setCurrentActivity(null);
+    setCurrentScreen('welcome');
   };
 
   const renderActivity = () => {
@@ -86,20 +125,30 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      {currentScreen === 'welcome' && (
-        <WelcomeScreen onStart={handleStartApp} />
+      {isAuthLoading && (
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+          <p className="text-slate-700 text-lg">Loading account...</p>
+        </div>
       )}
 
-      {currentScreen === 'activities' && (
+      {!isAuthLoading && currentScreen === 'welcome' && (
+        <WelcomeScreen onStart={handleStartApp} isLoading={isSigningIn} />
+      )}
+
+      {!isAuthLoading && currentScreen === 'activities' && (
         <>
-          <Header user={user} onShowLeaderboard={() => setShowLeaderboard(true)} />
+          <Header
+            user={user}
+            onShowLeaderboard={() => setShowLeaderboard(true)}
+            onSignOut={handleSignOut}
+          />
           <ActivitySelector onSelectActivity={handleSelectActivity} />
         </>
       )}
 
-      {currentScreen === 'activity' && renderActivity()}
+      {!isAuthLoading && currentScreen === 'activity' && renderActivity()}
 
-      {currentScreen === 'completion' && (
+      {!isAuthLoading && currentScreen === 'completion' && (
         <CompletionScreen
           xpEarned={lastXPEarned}
           onContinue={handleContinuePractice}

@@ -1,21 +1,52 @@
+# Coptic Learning Website
 
-  # Coptic Learning Website
+This is a code bundle for Coptic Learning Website. The original project is available at https://www.figma.com/design/1q1mIVLVY1zQeLyEr2j5FZ/Coptic-Learning-Website.
 
-  This is a code bundle for Coptic Learning Website. The original project is available at https://www.figma.com/design/1q1mIVLVY1zQeLyEr2j5FZ/Coptic-Learning-Website.
+## Local setup
 
-  ## Running the code
+1. Install dependencies:
+   `npm install`
+2. Copy `.env.example` to `.env` and fill in your Firebase config values.
+3. Start development server:
+   `npm run dev`
 
-  Run `npm i` to install the dependencies.
+## Firebase setup
 
-  Run `npm run dev` to start the development server.
+1. Create a Firebase project.
+2. Enable `Authentication` -> `Sign-in method` -> `Google`.
+3. Create a Firestore database.
+4. In `Authentication` -> `Settings` -> `Authorized domains`, add your GitHub Pages domain (`<username>.github.io`).
+5. Add your app's web config values into `.env` using the `VITE_FIREBASE_*` keys in `.env.example`.
 
-  ## Deploying to GitHub Pages
+## Deploying to GitHub Pages
 
-  This repo includes a workflow at `.github/workflows/deploy-pages.yml` that deploys the `dist` folder to GitHub Pages on every push to `main`.
+This repo includes a workflow at `.github/workflows/deploy-pages.yml` that deploys the `dist` folder to GitHub Pages on every push to `main`.
 
-  In your GitHub repo settings:
-  1. Go to `Settings` -> `Pages`.
-  2. Set `Source` to `GitHub Actions`.
+In your GitHub repo settings:
+1. Go to `Settings` -> `Pages`.
+2. Set `Source` to `GitHub Actions`.
+3. Add repository secrets for:
+   - `VITE_FIREBASE_API_KEY`
+   - `VITE_FIREBASE_AUTH_DOMAIN`
+   - `VITE_FIREBASE_PROJECT_ID`
+   - `VITE_FIREBASE_STORAGE_BUCKET`
+   - `VITE_FIREBASE_MESSAGING_SENDER_ID`
+   - `VITE_FIREBASE_APP_ID`
 
-  Then push to `main` and GitHub will publish your site at your Pages URL.
-  
+Push to `main` and GitHub will publish your site at your Pages URL.
+
+## Firestore security rules (recommended)
+
+Use rules like this so authenticated users can read leaderboard data, and only edit their own profile document:
+
+```txt
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+```

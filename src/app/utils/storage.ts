@@ -1,7 +1,26 @@
-// LocalStorage utilities for user progress and leaderboard
+import type { User as FirebaseUser } from 'firebase/auth';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  increment,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  runTransaction,
+  serverTimestamp,
+  setDoc,
+  Timestamp,
+} from 'firebase/firestore';
+import { db } from './firebase';
 
 export interface UserProfile {
+  uid: string;
   name: string;
+  email: string | null;
+  photoURL: string | null;
   xp: number;
   level: number;
   createdAt: string;
@@ -9,163 +28,150 @@ export interface UserProfile {
 }
 
 export interface LeaderboardEntry {
+  uid: string;
   name: string;
+  photoURL: string | null;
   xp: number;
-  weekStart: string;
+  level: number;
 }
 
-export interface ActivityHistory {
-  activityType: string;
-  xpEarned: number;
-  timestamp: string;
+const USERS_COLLECTION = 'users';
+
+function timestampToIso(value: unknown): string {
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  return new Date().toISOString();
 }
 
-const USER_KEY = 'coptic_user_profile';
-const LEADERBOARD_KEY = 'coptic_leaderboard';
-const HISTORY_KEY = 'coptic_activity_history';
-
-// Get the start of the current week (Sunday)
-export function getWeekStart(): string {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const diff = dayOfWeek; // Days since Sunday
-  const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - diff);
-  weekStart.setHours(0, 0, 0, 0);
-  return weekStart.toISOString();
+function calculateLevel(xp: number): number {
+  return Math.floor(xp / 100) + 1;
 }
 
-// User Profile Management
-export function getUserProfile(): UserProfile | null {
-  const data = localStorage.getItem(USER_KEY);
-  if (!data) return null;
-  return JSON.parse(data);
-}
-
-export function createUserProfile(name: string): UserProfile {
-  const profile: UserProfile = {
-    name,
-    xp: 0,
-    level: 1,
-    createdAt: new Date().toISOString(),
-    lastActive: new Date().toISOString(),
+function mapUserProfile(uid: string, data: Record<string, unknown>): UserProfile {
+  const xp = typeof data.xp === 'number' ? data.xp : 0;
+  return {
+    uid,
+    name: typeof data.name === 'string' ? data.name : 'Learner',
+    email: typeof data.email === 'string' ? data.email : null,
+    photoURL: typeof data.photoURL === 'string' ? data.photoURL : null,
+    xp,
+    level: typeof data.level === 'number' ? data.level : calculateLevel(xp),
+    createdAt: timestampToIso(data.createdAt),
+    lastActive: timestampToIso(data.lastActive),
   };
-  localStorage.setItem(USER_KEY, JSON.stringify(profile));
-  return profile;
 }
 
-export function updateUserProfile(updates: Partial<UserProfile>): UserProfile {
-  const profile = getUserProfile();
-  if (!profile) throw new Error('No user profile found');
-  
-  const updated = {
-    ...profile,
-    ...updates,
-    lastActive: new Date().toISOString(),
+function userDocRef(uid: string) {
+  return doc(db, USERS_COLLECTION, uid);
+}
+
+export async function ensureUserProfileFromAuth(authUser: FirebaseUser): Promise<UserProfile> {
+  const userRef = userDocRef(authUser.uid);
+  const existing = await getDoc(userRef);
+
+  if (existing.exists()) {
+    return mapUserProfile(existing.id, existing.data() as Record<string, unknown>);
+  }
+
+  const initialXP = 0;
+  const profile = {
+    name: authUser.displayName || 'Learner',
+    email: authUser.email || null,
+    photoURL: authUser.photoURL || null,
+    xp: initialXP,
+    level: calculateLevel(initialXP),
+    createdAt: serverTimestamp(),
+    lastActive: serverTimestamp(),
   };
-  
-  localStorage.setItem(USER_KEY, JSON.stringify(updated));
-  return updated;
+
+  await setDoc(userRef, profile);
+
+  const created = await getDoc(userRef);
+  return mapUserProfile(created.id, created.data() as Record<string, unknown>);
 }
 
-export function addXP(amount: number, activityType: string): UserProfile {
-  const profile = getUserProfile();
-  if (!profile) throw new Error('No user profile found');
-  
-  const newXP = profile.xp + amount;
-  const newLevel = Math.floor(newXP / 100) + 1; // Level up every 100 XP
-  
-  const updated = updateUserProfile({
-    xp: newXP,
-    level: newLevel,
+export function subscribeToUserProfile(
+  uid: string,
+  onUpdate: (profile: UserProfile | null) => void,
+) {
+  return onSnapshot(userDocRef(uid), (snapshot) => {
+    if (!snapshot.exists()) {
+      onUpdate(null);
+      return;
+    }
+    onUpdate(mapUserProfile(snapshot.id, snapshot.data() as Record<string, unknown>));
   });
-  
-  // Update leaderboard
-  updateLeaderboard(profile.name, amount);
-  
-  // Add to activity history
-  addActivityHistory(activityType, amount);
-  
-  return updated;
 }
 
-// Leaderboard Management
-export function getLeaderboard(): LeaderboardEntry[] {
-  const data = localStorage.getItem(LEADERBOARD_KEY);
-  if (!data) return [];
-  
-  const leaderboard: LeaderboardEntry[] = JSON.parse(data);
-  const currentWeekStart = getWeekStart();
-  
-  // Filter to only show current week's entries
-  return leaderboard
-    .filter(entry => entry.weekStart === currentWeekStart)
-    .sort((a, b) => b.xp - a.xp);
-}
+export async function addXP(
+  uid: string,
+  amount: number,
+): Promise<UserProfile> {
+  const userRef = userDocRef(uid);
 
-export function updateLeaderboard(name: string, xpToAdd: number): void {
-  const leaderboard = getAllLeaderboardEntries();
-  const currentWeekStart = getWeekStart();
-  
-  const existingIndex = leaderboard.findIndex(
-    entry => entry.name === name && entry.weekStart === currentWeekStart
-  );
-  
-  if (existingIndex !== -1) {
-    leaderboard[existingIndex].xp += xpToAdd;
-  } else {
-    leaderboard.push({
-      name,
-      xp: xpToAdd,
-      weekStart: currentWeekStart,
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(userRef);
+    if (!snapshot.exists()) {
+      throw new Error('No user profile found');
+    }
+
+    const currentXP = typeof snapshot.data().xp === 'number' ? snapshot.data().xp : 0;
+    const updatedXP = currentXP + amount;
+
+    transaction.update(userRef, {
+      xp: increment(amount),
+      level: calculateLevel(updatedXP),
+      lastActive: serverTimestamp(),
     });
-  }
-  
-  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(leaderboard));
-}
-
-function getAllLeaderboardEntries(): LeaderboardEntry[] {
-  const data = localStorage.getItem(LEADERBOARD_KEY);
-  if (!data) return [];
-  return JSON.parse(data);
-}
-
-// Activity History
-export function getActivityHistory(): ActivityHistory[] {
-  const data = localStorage.getItem(HISTORY_KEY);
-  if (!data) return [];
-  return JSON.parse(data);
-}
-
-export function addActivityHistory(activityType: string, xpEarned: number): void {
-  const history = getActivityHistory();
-  history.push({
-    activityType,
-    xpEarned,
-    timestamp: new Date().toISOString(),
   });
-  
-  // Keep only last 50 activities
-  if (history.length > 50) {
-    history.splice(0, history.length - 50);
-  }
-  
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+
+  const updated = await getDoc(userRef);
+  if (!updated.exists()) throw new Error('No user profile found');
+  return mapUserProfile(updated.id, updated.data() as Record<string, unknown>);
 }
 
-// Reset weekly leaderboard (can be called manually or on a schedule)
-export function resetWeeklyLeaderboard(): void {
-  const leaderboard = getAllLeaderboardEntries();
-  const currentWeekStart = getWeekStart();
-  
-  // Remove old entries (keep last 4 weeks for reference)
-  const fourWeeksAgo = new Date();
-  fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-  
-  const filtered = leaderboard.filter(entry => {
-    const entryDate = new Date(entry.weekStart);
-    return entryDate >= fourWeeksAgo;
+export async function getLeaderboard(limitCount = 100): Promise<LeaderboardEntry[]> {
+  const leaderboardQuery = query(
+    collection(db, USERS_COLLECTION),
+    orderBy('xp', 'desc'),
+    limit(limitCount),
+  );
+  const snapshots = await getDocs(leaderboardQuery);
+
+  return snapshots.docs.map((entry) => {
+    const data = entry.data() as Record<string, unknown>;
+    const xp = typeof data.xp === 'number' ? data.xp : 0;
+    return {
+      uid: entry.id,
+      name: typeof data.name === 'string' ? data.name : 'Learner',
+      photoURL: typeof data.photoURL === 'string' ? data.photoURL : null,
+      xp,
+      level: typeof data.level === 'number' ? data.level : calculateLevel(xp),
+    };
   });
-  
-  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(filtered));
+}
+
+export function subscribeToLeaderboard(
+  onUpdate: (entries: LeaderboardEntry[]) => void,
+  limitCount = 100,
+) {
+  const leaderboardQuery = query(
+    collection(db, USERS_COLLECTION),
+    orderBy('xp', 'desc'),
+    limit(limitCount),
+  );
+
+  return onSnapshot(leaderboardQuery, (snapshot) => {
+    const entries = snapshot.docs.map((entry) => {
+      const data = entry.data() as Record<string, unknown>;
+      const xp = typeof data.xp === 'number' ? data.xp : 0;
+      return {
+        uid: entry.id,
+        name: typeof data.name === 'string' ? data.name : 'Learner',
+        photoURL: typeof data.photoURL === 'string' ? data.photoURL : null,
+        xp,
+        level: typeof data.level === 'number' ? data.level : calculateLevel(xp),
+      };
+    });
+    onUpdate(entries);
+  });
 }
