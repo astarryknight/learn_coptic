@@ -8,7 +8,10 @@ import {
   assignUserToOrganization,
   createOrganization,
   deleteOrganization,
+  setUserOrgAdminScope,
   subscribeToAllUsers,
+  subscribeToUsersByOrganization,
+  updateOrganization,
   type Organization,
   type UserProfile,
 } from '../utils/storage';
@@ -16,31 +19,72 @@ import {
 interface AdminDashboardProps {
   onBack: () => void;
   organizations: Organization[];
+  currentUser: UserProfile | null;
+  isFullAdmin: boolean;
 }
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString();
 }
 
-export function AdminDashboard({ onBack, organizations }: AdminDashboardProps) {
+export function AdminDashboard({
+  onBack,
+  organizations,
+  currentUser,
+  isFullAdmin,
+}: AdminDashboardProps) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [draftOrganizationByUser, setDraftOrganizationByUser] = useState<Record<string, string>>({});
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [savingOrgAdminUserId, setSavingOrgAdminUserId] = useState<string | null>(null);
   const [newOrganizationName, setNewOrganizationName] = useState('');
   const [newOrganizationDescription, setNewOrganizationDescription] = useState('');
   const [isCreatingOrganization, setIsCreatingOrganization] = useState(false);
   const [deletingOrganizationId, setDeletingOrganizationId] = useState<string | null>(null);
+  const [orgDraftName, setOrgDraftName] = useState('');
+  const [orgDraftDescription, setOrgDraftDescription] = useState('');
+  const [savingManagedOrganizationId, setSavingManagedOrganizationId] = useState<string | null>(null);
+
+  const adminOrganizationId = currentUser?.adminOrganizationId || '';
+
+  const visibleOrganizations = useMemo(() => {
+    if (isFullAdmin) return organizations;
+    return organizations.filter((organization) => organization.id === adminOrganizationId);
+  }, [adminOrganizationId, isFullAdmin, organizations]);
+  const managedOrganization = visibleOrganizations[0] || null;
 
   useEffect(() => {
-    const unsubscribe = subscribeToAllUsers((profiles) => {
+    if (isFullAdmin) return;
+    setOrgDraftName(managedOrganization?.name || '');
+    setOrgDraftDescription(managedOrganization?.description || '');
+  }, [isFullAdmin, managedOrganization?.description, managedOrganization?.name]);
+
+  useEffect(() => {
+    setLoading(true);
+
+    if (isFullAdmin) {
+      const unsubscribe = subscribeToAllUsers((profiles) => {
+        setUsers(profiles);
+        setLoading(false);
+      });
+      return () => unsubscribe();
+    }
+
+    if (!adminOrganizationId) {
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = subscribeToUsersByOrganization(adminOrganizationId, (profiles) => {
       setUsers(profiles);
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [adminOrganizationId, isFullAdmin]);
 
   const filteredUsers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -72,12 +116,17 @@ export function AdminDashboard({ onBack, organizations }: AdminDashboardProps) {
     const organizationId = getDraftOrganizationId(user);
     if (!organizationId) return;
 
-    const organization = organizations.find((org) => org.id === organizationId);
+    const organization = visibleOrganizations.find((org) => org.id === organizationId);
     if (!organization) return;
 
     try {
       setSavingUserId(user.uid);
       await assignUserToOrganization(user.uid, organization.id, organization.name);
+
+      // Keep org-admin scope aligned when a full admin moves an org admin to another org.
+      if (isFullAdmin && user.adminOrganizationId && user.adminOrganizationId !== organization.id) {
+        await setUserOrgAdminScope(user.uid, organization.id);
+      }
     } catch (error) {
       console.error('Failed to assign organization:', error);
     } finally {
@@ -120,14 +169,44 @@ export function AdminDashboard({ onBack, organizations }: AdminDashboardProps) {
     }
   };
 
+  const handleSetOrgAdmin = async (user: UserProfile, adminScopeOrgId: string | null) => {
+    if (!isFullAdmin) return;
+
+    try {
+      setSavingOrgAdminUserId(user.uid);
+      await setUserOrgAdminScope(user.uid, adminScopeOrgId);
+    } catch (error) {
+      console.error('Failed to update org admin scope:', error);
+    } finally {
+      setSavingOrgAdminUserId(null);
+    }
+  };
+
+  const handleSaveManagedOrganization = async () => {
+    if (!managedOrganization) return;
+
+    try {
+      setSavingManagedOrganizationId(managedOrganization.id);
+      await updateOrganization(managedOrganization.id, orgDraftName, orgDraftDescription);
+    } catch (error) {
+      console.error('Failed to update organization:', error);
+    } finally {
+      setSavingManagedOrganizationId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Admin Dashboard</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-800">
+              {isFullAdmin ? 'Global Admin Dashboard' : 'Organization Admin Dashboard'}
+            </h1>
             <p className="text-sm md:text-base text-slate-600">
-              Manage organization membership and review user progress.
+              {isFullAdmin
+                ? 'Manage organizations, users, and org admins.'
+                : 'Manage users and activity inside your organization.'}
             </p>
           </div>
           <Button
@@ -166,6 +245,7 @@ export function AdminDashboard({ onBack, organizations }: AdminDashboardProps) {
                 {filteredUsers.map((user) => {
                   const organization = currentOrganization(user);
                   const isSaving = savingUserId === user.uid;
+                  const isSavingOrgAdmin = savingOrgAdminUserId === user.uid;
                   return (
                     <div
                       key={user.uid}
@@ -195,9 +275,10 @@ export function AdminDashboard({ onBack, organizations }: AdminDashboardProps) {
                           value={getDraftOrganizationId(user)}
                           onChange={(event) => handleDraftChange(user.uid, event.target.value)}
                           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                          disabled={!isFullAdmin}
                         >
                           <option value="" disabled>Select organization</option>
-                          {organizations.map((org) => (
+                          {visibleOrganizations.map((org) => (
                             <option key={org.id} value={org.id}>
                               {org.name}
                             </option>
@@ -213,6 +294,40 @@ export function AdminDashboard({ onBack, organizations }: AdminDashboardProps) {
                           {isSaving ? 'Saving...' : 'Save'}
                         </Button>
                       </div>
+
+                      {isFullAdmin ? (
+                        <div className="mt-2 flex items-center gap-2">
+                          {user.adminOrganizationId ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => void handleSetOrgAdmin(user, null)}
+                              disabled={isSavingOrgAdmin}
+                            >
+                              {isSavingOrgAdmin ? 'Updating...' : 'Remove Org Admin'}
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() =>
+                                void handleSetOrgAdmin(user, getDraftOrganizationId(user) || null)
+                              }
+                              disabled={isSavingOrgAdmin || !getDraftOrganizationId(user)}
+                            >
+                              {isSavingOrgAdmin ? 'Updating...' : 'Make Org Admin'}
+                            </Button>
+                          )}
+                          <span className="text-xs text-slate-500">
+                            {user.adminOrganizationId
+                              ? `Org admin for ${
+                                  organizations.find((org) => org.id === user.adminOrganizationId)?.name ||
+                                  user.adminOrganizationId
+                                }`
+                              : 'Not an org admin'}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -222,9 +337,7 @@ export function AdminDashboard({ onBack, organizations }: AdminDashboardProps) {
 
           <Card className="p-4 md:p-5 bg-white">
             {!selectedUser ? (
-              <div className="text-slate-500">
-                Select a user to view progress.
-              </div>
+              <div className="text-slate-500">Select a user to view progress.</div>
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -279,7 +392,9 @@ export function AdminDashboard({ onBack, organizations }: AdminDashboardProps) {
                     <p className="font-semibold text-sm">Admin Access</p>
                   </div>
                   <p className="text-xs text-slate-200">
-                    This dashboard is only visible to authorized admin accounts.
+                    {isFullAdmin
+                      ? 'You have full admin access across all organizations.'
+                      : 'You have admin access limited to your organization only.'}
                   </p>
                 </div>
               </div>
@@ -287,60 +402,92 @@ export function AdminDashboard({ onBack, organizations }: AdminDashboardProps) {
           </Card>
         </div>
 
-        <Card className="p-4 md:p-5 bg-white">
-          <h2 className="text-lg font-bold text-slate-800 mb-3">Organizations</h2>
+        {isFullAdmin ? (
+          <Card className="p-4 md:p-5 bg-white">
+            <h2 className="text-lg font-bold text-slate-800 mb-3">Organizations</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2 mb-4">
-            <input
-              value={newOrganizationName}
-              onChange={(event) => setNewOrganizationName(event.target.value)}
-              placeholder="Organization name"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-            />
-            <input
-              value={newOrganizationDescription}
-              onChange={(event) => setNewOrganizationDescription(event.target.value)}
-              placeholder="Description (optional)"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-            />
-            <Button
-              type="button"
-              onClick={() => void handleCreateOrganization()}
-              disabled={isCreatingOrganization || !newOrganizationName.trim()}
-              className="bg-slate-700 hover:bg-slate-800"
-            >
-              {isCreatingOrganization ? 'Creating...' : 'Create'}
-            </Button>
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2 mb-4">
+              <input
+                value={newOrganizationName}
+                onChange={(event) => setNewOrganizationName(event.target.value)}
+                placeholder="Organization name"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              />
+              <input
+                value={newOrganizationDescription}
+                onChange={(event) => setNewOrganizationDescription(event.target.value)}
+                placeholder="Description (optional)"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              />
+              <Button
+                type="button"
+                onClick={() => void handleCreateOrganization()}
+                disabled={isCreatingOrganization || !newOrganizationName.trim()}
+                className="bg-slate-700 hover:bg-slate-800"
+              >
+                {isCreatingOrganization ? 'Creating...' : 'Create'}
+              </Button>
+            </div>
 
-          <div className="space-y-2">
-            {organizations.map((organization) => {
-              const hasUsers = users.some((user) => user.organizationId === organization.id);
-              const isDeleting = deletingOrganizationId === organization.id;
-              return (
-                <div
-                  key={organization.id}
-                  className="rounded-lg border border-slate-200 p-3 flex items-center justify-between gap-3"
-                >
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-800 truncate">{organization.name}</p>
-                    <p className="text-xs text-slate-500 truncate">
-                      {organization.description || 'No description'}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => void handleDeleteOrganization(organization)}
-                    disabled={isDeleting || hasUsers}
+            <div className="space-y-2">
+              {organizations.map((organization) => {
+                const hasUsers = users.some((user) => user.organizationId === organization.id);
+                const isDeleting = deletingOrganizationId === organization.id;
+                return (
+                  <div
+                    key={organization.id}
+                    className="rounded-lg border border-slate-200 p-3 flex items-center justify-between gap-3"
                   >
-                    {isDeleting ? 'Deleting...' : 'Delete'}
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-800 truncate">{organization.name}</p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {organization.description || 'No description'}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void handleDeleteOrganization(organization)}
+                      disabled={isDeleting || hasUsers}
+                    >
+                      {isDeleting ? 'Deleting...' : 'Delete'}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        ) : (
+          <Card className="p-4 md:p-5 bg-white">
+            <h2 className="text-lg font-bold text-slate-800 mb-3">Your Organization</h2>
+            {!managedOrganization ? (
+              <p className="text-slate-500">No managed organization found.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2">
+                <input
+                  value={orgDraftName}
+                  onChange={(event) => setOrgDraftName(event.target.value)}
+                  placeholder="Organization name"
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                />
+                <input
+                  value={orgDraftDescription}
+                  onChange={(event) => setOrgDraftDescription(event.target.value)}
+                  placeholder="Description"
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                />
+                <Button
+                  type="button"
+                  onClick={() => void handleSaveManagedOrganization()}
+                  disabled={savingManagedOrganizationId === managedOrganization.id || !orgDraftName.trim()}
+                  className="bg-slate-700 hover:bg-slate-800"
+                >
+                  {savingManagedOrganizationId === managedOrganization.id ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+            )}
+          </Card>
+        )}
       </div>
     </div>
   );

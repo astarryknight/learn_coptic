@@ -9,7 +9,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isAdmin() {
+    function isSuperAdmin() {
       return isSignedIn()
         && request.auth.token.email == 'whiteh4tter@gmail.com'
         && request.auth.token.email_verified == true;
@@ -21,6 +21,16 @@ service cloud.firestore {
 
     function currentUserOrgId() {
       return currentUserDoc().data.organizationId;
+    }
+
+    function orgAdminOrgId() {
+      return currentUserDoc().data.adminOrganizationId;
+    }
+
+    function isOrgAdmin() {
+      return isSignedIn()
+        && currentUserDoc().exists()
+        && orgAdminOrgId() is string;
     }
 
     function sameOrganizationAsCurrentUser() {
@@ -37,6 +47,7 @@ service cloud.firestore {
         'photoURL',
         'organizationId',
         'organizationName',
+        'adminOrganizationId',
         'xp',
         'level',
         'createdAt',
@@ -47,6 +58,7 @@ service cloud.firestore {
       && (request.resource.data.photoURL == null || request.resource.data.photoURL is string)
       && request.resource.data.organizationId == null
       && request.resource.data.organizationName == null
+      && request.resource.data.adminOrganizationId == null
       && request.resource.data.xp is number
       && request.resource.data.level is number
       && request.resource.data.xp >= 0
@@ -72,6 +84,12 @@ service cloud.firestore {
         && request.resource.data.organizationName is string;
     }
 
+    function ownerWriteRateLimited() {
+      return resource.data.lastActive is timestamp
+        && request.resource.data.lastActive is timestamp
+        && request.time >= resource.data.lastActive + duration.value(1, 's');
+    }
+
     function validOwnerUpdate(userId) {
       let changed = request.resource.data.diff(resource.data).changedKeys();
       let scoreChanged = changed.hasAny(['xp', 'level']);
@@ -82,22 +100,58 @@ service cloud.firestore {
         && request.resource.data.name == resource.data.name
         && request.resource.data.email == resource.data.email
         && request.resource.data.photoURL == resource.data.photoURL
+        && request.resource.data.adminOrganizationId == resource.data.adminOrganizationId
         && request.resource.data.createdAt == resource.data.createdAt
+        && ownerWriteRateLimited()
         && (!scoreChanged || validOwnerScoreUpdate())
         && (!orgChanged || validOwnerOrgSet());
     }
 
+    function validOrgAdminManagedUserUpdate(userId) {
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+
+      return isOrgAdmin()
+        && !isOwner(userId)
+        && resource.data.organizationId == orgAdminOrgId()
+        && request.resource.data.organizationId == orgAdminOrgId()
+        && request.resource.data.organizationName is string
+        && request.resource.data.adminOrganizationId == resource.data.adminOrganizationId
+        && changed.hasOnly(['organizationId', 'organizationName', 'lastActive'])
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.photoURL == resource.data.photoURL
+        && request.resource.data.xp == resource.data.xp
+        && request.resource.data.level == resource.data.level
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.lastActive is timestamp;
+    }
+
+    function validOrgAdminOrganizationUpdate(organizationId) {
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+
+      return isOrgAdmin()
+        && organizationId == orgAdminOrgId()
+        && changed.hasOnly(['name', 'description'])
+        && request.resource.data.keys().hasOnly(['name', 'description', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.description is string
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
     match /users/{userId} {
-      allow get: if isAdmin() || isOwner(userId) || sameOrganizationAsCurrentUser();
-      allow list: if isAdmin() || sameOrganizationAsCurrentUser();
+      allow get: if isSuperAdmin() || isOwner(userId) || sameOrganizationAsCurrentUser();
+      allow list: if isSuperAdmin() || sameOrganizationAsCurrentUser();
       allow create: if validNewUserProfile(userId);
-      allow update: if isAdmin() || validOwnerUpdate(userId);
-      allow delete: if isAdmin();
+      allow update: if isSuperAdmin()
+        || validOwnerUpdate(userId)
+        || validOrgAdminManagedUserUpdate(userId);
+      allow delete: if isSuperAdmin();
     }
 
     match /organizations/{organizationId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create, delete: if isSuperAdmin();
+      allow update: if isSuperAdmin() || validOrgAdminOrganizationUpdate(organizationId);
     }
   }
 }

@@ -15,7 +15,7 @@ import {
   Timestamp,
   where,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 
 export interface UserProfile {
   uid: string;
@@ -24,6 +24,7 @@ export interface UserProfile {
   photoURL: string | null;
   organizationId: string | null;
   organizationName: string | null;
+  adminOrganizationId: string | null;
   xp: number;
   level: number;
   createdAt: string;
@@ -46,6 +47,41 @@ export interface Organization {
 
 const USERS_COLLECTION = 'users';
 const ORGANIZATIONS_COLLECTION = 'organizations';
+const READ_REQUEST_MIN_INTERVAL_MS = 250;
+const WRITE_REQUEST_MIN_INTERVAL_MS = 500;
+const requestTimestampsByUser = new Map<string, { read: number; write: number }>();
+
+type RequestType = 'read' | 'write';
+
+function getCurrentUidForRateLimit() {
+  return auth.currentUser?.uid || 'anonymous';
+}
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function rateLimitFirestoreRequest(requestType: RequestType, uid: string) {
+  const now = Date.now();
+  const existing = requestTimestampsByUser.get(uid) || { read: 0, write: 0 };
+  const previousTimestamp = existing[requestType];
+  const minInterval =
+    requestType === 'write' ? WRITE_REQUEST_MIN_INTERVAL_MS : READ_REQUEST_MIN_INTERVAL_MS;
+  const elapsed = now - previousTimestamp;
+  const delayMs = Math.max(minInterval - elapsed, 0);
+
+  if (delayMs > 0) {
+    await wait(delayMs);
+  }
+
+  const updatedTimestamp = Date.now();
+  requestTimestampsByUser.set(uid, {
+    ...existing,
+    [requestType]: updatedTimestamp,
+  });
+}
 
 function timestampToIso(value: unknown): string {
   if (value instanceof Timestamp) return value.toDate().toISOString();
@@ -65,6 +101,8 @@ function mapUserProfile(uid: string, data: Record<string, unknown>): UserProfile
     photoURL: typeof data.photoURL === 'string' ? data.photoURL : null,
     organizationId: typeof data.organizationId === 'string' ? data.organizationId : null,
     organizationName: typeof data.organizationName === 'string' ? data.organizationName : null,
+    adminOrganizationId:
+      typeof data.adminOrganizationId === 'string' ? data.adminOrganizationId : null,
     xp,
     level: typeof data.level === 'number' ? data.level : calculateLevel(xp),
     createdAt: timestampToIso(data.createdAt),
@@ -89,6 +127,7 @@ function mapOrganization(id: string, data: Record<string, unknown>): Organizatio
 }
 
 export async function ensureUserProfileFromAuth(authUser: FirebaseUser): Promise<UserProfile> {
+  await rateLimitFirestoreRequest('write', authUser.uid);
   const userRef = userDocRef(authUser.uid);
   const existing = await getDoc(userRef);
 
@@ -103,6 +142,7 @@ export async function ensureUserProfileFromAuth(authUser: FirebaseUser): Promise
     photoURL: authUser.photoURL || null,
     organizationId: null,
     organizationName: null,
+    adminOrganizationId: null,
     xp: initialXP,
     level: calculateLevel(initialXP),
     createdAt: serverTimestamp(),
@@ -141,6 +181,23 @@ export function subscribeToAllUsers(
   });
 }
 
+export function subscribeToUsersByOrganization(
+  organizationId: string,
+  onUpdate: (profiles: UserProfile[]) => void,
+) {
+  const usersQuery = query(
+    collection(db, USERS_COLLECTION),
+    where('organizationId', '==', organizationId),
+  );
+
+  return onSnapshot(usersQuery, (snapshot) => {
+    const profiles = snapshot.docs
+      .map((entry) => mapUserProfile(entry.id, entry.data() as Record<string, unknown>))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    onUpdate(profiles);
+  });
+}
+
 export function subscribeToOrganizations(
   onUpdate: (organizations: Organization[]) => void,
 ) {
@@ -158,6 +215,7 @@ export async function createOrganization(
   name: string,
   description: string,
 ): Promise<Organization> {
+  await rateLimitFirestoreRequest('write', getCurrentUidForRateLimit());
   const trimmedName = name.trim();
   const trimmedDescription = description.trim();
   if (!trimmedName) throw new Error('Organization name is required');
@@ -176,13 +234,39 @@ export async function createOrganization(
 export async function deleteOrganization(
   organizationId: string,
 ): Promise<void> {
+  await rateLimitFirestoreRequest('write', getCurrentUidForRateLimit());
   await deleteDoc(organizationDocRef(organizationId));
+}
+
+export async function updateOrganization(
+  organizationId: string,
+  name: string,
+  description: string,
+): Promise<Organization> {
+  await rateLimitFirestoreRequest('write', getCurrentUidForRateLimit());
+  const trimmedName = name.trim();
+  const trimmedDescription = description.trim();
+  if (!trimmedName) throw new Error('Organization name is required');
+
+  await setDoc(
+    organizationDocRef(organizationId),
+    {
+      name: trimmedName,
+      description: trimmedDescription,
+    },
+    { merge: true },
+  );
+
+  const updated = await getDoc(organizationDocRef(organizationId));
+  if (!updated.exists()) throw new Error('Organization not found');
+  return mapOrganization(updated.id, updated.data() as Record<string, unknown>);
 }
 
 export async function addXP(
   uid: string,
   amount: number,
 ): Promise<UserProfile> {
+  await rateLimitFirestoreRequest('write', uid);
   const userRef = userDocRef(uid);
 
   await runTransaction(db, async (transaction) => {
@@ -211,6 +295,7 @@ export async function setUserOrganization(
   organizationId: string,
   organizationName: string,
 ): Promise<UserProfile> {
+  await rateLimitFirestoreRequest('write', uid);
   const userRef = userDocRef(uid);
 
   await setDoc(
@@ -236,6 +321,26 @@ export async function assignUserToOrganization(
   return setUserOrganization(uid, organizationId, organizationName);
 }
 
+export async function setUserOrgAdminScope(
+  uid: string,
+  adminOrganizationId: string | null,
+): Promise<UserProfile> {
+  await rateLimitFirestoreRequest('write', getCurrentUidForRateLimit());
+  const userRef = userDocRef(uid);
+  await setDoc(
+    userRef,
+    {
+      adminOrganizationId,
+      lastActive: serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  const updated = await getDoc(userRef);
+  if (!updated.exists()) throw new Error('No user profile found');
+  return mapUserProfile(updated.id, updated.data() as Record<string, unknown>);
+}
+
 function mapLeaderboardEntry(entryId: string, data: Record<string, unknown>): LeaderboardEntry {
   const xp = typeof data.xp === 'number' ? data.xp : 0;
   return {
@@ -257,6 +362,7 @@ export async function getLeaderboard(
   organizationId: string,
   limitCount = 100,
 ): Promise<LeaderboardEntry[]> {
+  await rateLimitFirestoreRequest('read', getCurrentUidForRateLimit());
   const leaderboardQuery = query(
     collection(db, USERS_COLLECTION),
     where('organizationId', '==', organizationId),

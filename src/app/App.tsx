@@ -34,7 +34,9 @@ export default function App() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isSavingOrganization, setIsSavingOrganization] = useState(false);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const isAdmin = user?.email ? ADMIN_EMAILS.has(user.email.toLowerCase()) : false;
+  const isFullAdmin = user?.email ? ADMIN_EMAILS.has(user.email.toLowerCase()) : false;
+  const isOrgAdmin = Boolean(user?.adminOrganizationId);
+  const canAccessAdmin = isFullAdmin || isOrgAdmin;
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (authUser) => {
@@ -48,10 +50,11 @@ export default function App() {
       try {
         const profile = await ensureUserProfileFromAuth(authUser);
         setUser(profile);
-        const userIsAdmin = profile.email
+        const userIsFullAdmin = profile.email
           ? ADMIN_EMAILS.has(profile.email.toLowerCase())
           : false;
-        if (userIsAdmin) {
+        const userIsOrgAdmin = Boolean(profile.adminOrganizationId);
+        if (userIsFullAdmin || userIsOrgAdmin) {
           setCurrentScreen('admin');
         } else {
           setCurrentScreen(profile.organizationId ? 'activities' : 'organization');
@@ -193,18 +196,20 @@ export default function App() {
           <Header
             user={user}
             onShowLeaderboard={() => setShowLeaderboard(true)}
-            onShowAdmin={isAdmin ? handleShowAdmin : undefined}
-            showAdminButton={isAdmin}
+            onShowAdmin={canAccessAdmin ? handleShowAdmin : undefined}
+            showAdminButton={canAccessAdmin}
             onSignOut={handleSignOut}
           />
           <ActivitySelector onSelectActivity={handleSelectActivity} />
         </>
       )}
 
-      {!isAuthLoading && currentScreen === 'admin' && isAdmin && (
+      {!isAuthLoading && currentScreen === 'admin' && canAccessAdmin && (
         <AdminDashboard
           onBack={() => setCurrentScreen('activities')}
           organizations={organizations}
+          currentUser={user}
+          isFullAdmin={isFullAdmin}
         />
       )}
 
