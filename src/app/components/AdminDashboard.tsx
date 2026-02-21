@@ -8,6 +8,7 @@ import {
   assignUserToOrganization,
   createOrganization,
   deleteOrganization,
+  deleteUserProfile,
   setUserOrgAdminScope,
   subscribeToAllUsers,
   subscribeToUsersByOrganization,
@@ -47,6 +48,7 @@ export function AdminDashboard({
   const [orgDraftName, setOrgDraftName] = useState('');
   const [orgDraftDescription, setOrgDraftDescription] = useState('');
   const [savingManagedOrganizationId, setSavingManagedOrganizationId] = useState<string | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   const adminOrganizationId = currentUser?.adminOrganizationId || '';
 
@@ -195,6 +197,24 @@ export function AdminDashboard({
     }
   };
 
+  const handleDeleteUser = async (user: UserProfile) => {
+    if (!currentUser || currentUser.uid === user.uid) return;
+    const confirmed = window.confirm(`Remove ${user.name} from the platform? This cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      setDeletingUserId(user.uid);
+      await deleteUserProfile(user.uid);
+      if (selectedUserId === user.uid) {
+        setSelectedUserId(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-4">
@@ -246,6 +266,8 @@ export function AdminDashboard({
                   const organization = currentOrganization(user);
                   const isSaving = savingUserId === user.uid;
                   const isSavingOrgAdmin = savingOrgAdminUserId === user.uid;
+                  const isDeletingUser = deletingUserId === user.uid;
+                  const isCurrentUser = currentUser?.uid === user.uid;
                   return (
                     <div
                       key={user.uid}
@@ -288,7 +310,7 @@ export function AdminDashboard({
                         <Button
                           type="button"
                           onClick={() => void handleSaveOrganization(user)}
-                          disabled={isSaving || !organization}
+                          disabled={isSaving || !organization || isDeletingUser || isCurrentUser}
                           className="bg-slate-700 hover:bg-slate-800"
                         >
                           {isSaving ? 'Saving...' : 'Save'}
@@ -296,13 +318,13 @@ export function AdminDashboard({
                       </div>
 
                       {isFullAdmin ? (
-                        <div className="mt-2 flex items-center gap-2">
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
                           {user.adminOrganizationId ? (
                             <Button
                               type="button"
                               variant="outline"
                               onClick={() => void handleSetOrgAdmin(user, null)}
-                              disabled={isSavingOrgAdmin}
+                              disabled={isSavingOrgAdmin || isDeletingUser || isCurrentUser}
                             >
                               {isSavingOrgAdmin ? 'Updating...' : 'Remove Org Admin'}
                             </Button>
@@ -313,11 +335,19 @@ export function AdminDashboard({
                               onClick={() =>
                                 void handleSetOrgAdmin(user, getDraftOrganizationId(user) || null)
                               }
-                              disabled={isSavingOrgAdmin || !getDraftOrganizationId(user)}
+                              disabled={isSavingOrgAdmin || !getDraftOrganizationId(user) || isDeletingUser || isCurrentUser}
                             >
                               {isSavingOrgAdmin ? 'Updating...' : 'Make Org Admin'}
                             </Button>
                           )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => void handleDeleteUser(user)}
+                            disabled={isDeletingUser || isCurrentUser}
+                          >
+                            {isDeletingUser ? 'Removing...' : isCurrentUser ? 'You' : 'Remove User'}
+                          </Button>
                           <span className="text-xs text-slate-500">
                             {user.adminOrganizationId
                               ? `Org admin for ${
@@ -327,7 +357,18 @@ export function AdminDashboard({
                               : 'Not an org admin'}
                           </span>
                         </div>
-                      ) : null}
+                      ) : (
+                        <div className="mt-2 flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => void handleDeleteUser(user)}
+                            disabled={isDeletingUser || isCurrentUser}
+                          >
+                            {isDeletingUser ? 'Removing...' : isCurrentUser ? 'You' : 'Remove User'}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

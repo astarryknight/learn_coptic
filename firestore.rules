@@ -138,6 +138,12 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt;
     }
 
+    function validOrgAdminDeleteUser(userId) {
+      return isOrgAdmin()
+        && !isOwner(userId)
+        && resource.data.organizationId == orgAdminOrgId();
+    }
+
     match /users/{userId} {
       allow get: if isSuperAdmin() || isOwner(userId) || sameOrganizationAsCurrentUser();
       allow list: if isSuperAdmin() || sameOrganizationAsCurrentUser();
@@ -145,7 +151,7 @@ service cloud.firestore {
       allow update: if isSuperAdmin()
         || validOwnerUpdate(userId)
         || validOrgAdminManagedUserUpdate(userId);
-      allow delete: if isSuperAdmin();
+      allow delete: if isSuperAdmin() || validOrgAdminDeleteUser(userId);
     }
 
     match /organizations/{organizationId} {

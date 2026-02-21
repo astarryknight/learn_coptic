@@ -238,6 +238,11 @@ export async function deleteOrganization(
   await deleteDoc(organizationDocRef(organizationId));
 }
 
+export async function deleteUserProfile(uid: string): Promise<void> {
+  await rateLimitFirestoreRequest('write', getCurrentUidForRateLimit());
+  await deleteDoc(userDocRef(uid));
+}
+
 export async function updateOrganization(
   organizationId: string,
   name: string,
