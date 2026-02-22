@@ -13,7 +13,7 @@ This is a code bundle for Coptic Learning Website. The original project is avail
 ## Firebase setup
 
 1. Create a Firebase project.
-2. Enable `Authentication` -> `Sign-in method` -> `Google`.
+2. Enable `Authentication` -> `Sign-in method` -> `Google` and `Email/Password`.
 3. Create a Firestore database.
 4. In `Authentication` -> `Settings` -> `Authorized domains`, add your GitHub Pages domain (`<username>.github.io`).
 5. Add your app's web config values into `.env` using the `VITE_FIREBASE_*` keys in `.env.example`.

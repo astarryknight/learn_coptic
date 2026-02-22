@@ -19,7 +19,13 @@ import {
   type Organization,
 } from './utils/storage';
 import type { UserProfile } from './utils/storage';
-import { auth, signInWithGoogle, signOutUser } from './utils/firebase';
+import {
+  auth,
+  signInWithEmailPassword,
+  signInWithGoogle,
+  signOutUser,
+  signUpWithEmailPassword,
+} from './utils/firebase';
 
 type Screen = 'welcome' | 'organization' | 'activities' | 'activity' | 'completion' | 'admin';
 const ADMIN_EMAILS = new Set(['whiteh4tter@gmail.com']);
@@ -28,6 +34,7 @@ export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
   const [currentActivity, setCurrentActivity] = useState<ActivityType | null>(null);
   const [lastXPEarned, setLastXPEarned] = useState(0);
@@ -94,9 +101,59 @@ export default function App() {
   const handleStartApp = async () => {
     try {
       setIsSigningIn(true);
+      setAuthError(null);
       await signInWithGoogle();
     } catch (error) {
       console.error('Google sign-in failed:', error);
+      setAuthError('Google sign-in failed. Please try again.');
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const getAuthErrorMessage = (error: unknown) => {
+    const code = typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code: unknown }).code)
+      : '';
+    switch (code) {
+      case 'auth/email-already-in-use':
+        return 'That email is already in use. Try signing in instead.';
+      case 'auth/invalid-email':
+        return 'Please enter a valid email address.';
+      case 'auth/weak-password':
+        return 'Password must be at least 6 characters.';
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+        return 'Invalid email or password.';
+      case 'auth/too-many-requests':
+        return 'Too many attempts. Please wait and try again.';
+      default:
+        return 'Authentication failed. Please try again.';
+    }
+  };
+
+  const handleEmailSignIn = async (email: string, password: string) => {
+    try {
+      setIsSigningIn(true);
+      setAuthError(null);
+      await signInWithEmailPassword(email, password);
+    } catch (error) {
+      console.error('Email sign-in failed:', error);
+      setAuthError(getAuthErrorMessage(error));
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleEmailSignUp = async (name: string, email: string, password: string) => {
+    try {
+      setIsSigningIn(true);
+      setAuthError(null);
+      await signUpWithEmailPassword(name, email, password);
+    } catch (error) {
+      console.error('Email sign-up failed:', error);
+      setAuthError(getAuthErrorMessage(error));
     } finally {
       setIsSigningIn(false);
     }
@@ -180,7 +237,14 @@ export default function App() {
       )}
 
       {!isAuthLoading && currentScreen === 'welcome' && (
-        <WelcomeScreen onStart={handleStartApp} isLoading={isSigningIn} />
+        <WelcomeScreen
+          onGoogleStart={handleStartApp}
+          onEmailSignIn={handleEmailSignIn}
+          onEmailSignUp={handleEmailSignUp}
+          isLoading={isSigningIn}
+          authError={authError}
+          onClearError={() => setAuthError(null)}
+        />
       )}
 
       {!isAuthLoading && currentScreen === 'organization' && (

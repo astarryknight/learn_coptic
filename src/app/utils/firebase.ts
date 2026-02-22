@@ -1,5 +1,13 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  GoogleAuthProvider,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const requiredEnvKeys = [
@@ -68,6 +76,23 @@ const googleProvider = new GoogleAuthProvider();
 
 export async function signInWithGoogle() {
   return signInWithPopup(auth, googleProvider);
+}
+
+export async function signInWithEmailPassword(email: string, password: string) {
+  return signInWithEmailAndPassword(auth, email.trim(), password);
+}
+
+export async function signUpWithEmailPassword(
+  name: string,
+  email: string,
+  password: string,
+) {
+  const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  const trimmedName = name.trim();
+  if (trimmedName) {
+    await updateProfile(credential.user, { displayName: trimmedName });
+  }
+  return credential;
 }
 
 export async function signOutUser() {
