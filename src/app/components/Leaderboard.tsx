@@ -16,20 +16,56 @@ interface LeaderboardProps {
 export function Leaderboard({ onClose, organizationId, organizationName }: LeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxPermissionRetryCount = 2;
 
   useEffect(() => {
     if (!organizationId) {
       setLeaderboard([]);
       setLoading(false);
+      setErrorMessage(null);
+      setRetryCount(0);
       return;
     }
 
-    const unsubscribe = subscribeToLeaderboard(organizationId, (entries) => {
-      setLeaderboard(entries);
-      setLoading(false);
-    });
+    setLoading(true);
+    setErrorMessage(null);
+
+    const unsubscribe = subscribeToLeaderboard(
+      organizationId,
+      (entries) => {
+        setLeaderboard(entries);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Leaderboard subscription failed:', error);
+        const code = typeof error === 'object' && error !== null && 'code' in error
+          ? String((error as { code: unknown }).code)
+          : '';
+
+        if (code === 'permission-denied') {
+          if (retryCount < maxPermissionRetryCount) {
+            setErrorMessage('Leaderboard is temporarily unavailable. Retrying...');
+            window.setTimeout(() => {
+              setRetryCount((previous) => previous + 1);
+              setRetryKey((previous) => previous + 1);
+            }, 800);
+            return;
+          }
+
+          setErrorMessage('Missing permissions to load leaderboard.');
+          setLoading(false);
+          return;
+        }
+
+        setErrorMessage('Failed to load leaderboard.');
+        setLoading(false);
+      },
+    );
     return () => unsubscribe();
-  }, [organizationId]);
+  }, [organizationId, retryCount, retryKey]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -87,7 +123,13 @@ export function Leaderboard({ onClose, organizationId, organizationName }: Leade
             </div>
           ) : null}
 
-          {!loading && leaderboard.length === 0 ? (
+          {!loading && errorMessage ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500 text-lg">{errorMessage}</p>
+            </div>
+          ) : null}
+
+          {!loading && !errorMessage && leaderboard.length === 0 ? (
             <div className="text-center py-12">
               <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-300" />
               <p className="text-gray-500 text-lg">No entries yet.</p>
@@ -97,7 +139,7 @@ export function Leaderboard({ onClose, organizationId, organizationName }: Leade
             </div>
           ) : null}
 
-          {!loading && leaderboard.length > 0 ? (
+          {!loading && !errorMessage && leaderboard.length > 0 ? (
             <div className="space-y-3">
               {leaderboard.map((entry, index) => (
                 <motion.div

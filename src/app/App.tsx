@@ -79,12 +79,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!user?.uid) {
+      setOrganizations([]);
+      return;
+    }
+
     const unsubscribeOrganizations = subscribeToOrganizations((nextOrganizations) => {
       setOrganizations(nextOrganizations);
     });
 
     return () => unsubscribeOrganizations();
-  }, []);
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user?.uid) return;

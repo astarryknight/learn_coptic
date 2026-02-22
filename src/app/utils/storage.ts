@@ -200,15 +200,26 @@ export function subscribeToUsersByOrganization(
 
 export function subscribeToOrganizations(
   onUpdate: (organizations: Organization[]) => void,
+  onError?: (error: Error) => void,
 ) {
   const organizationsQuery = query(collection(db, ORGANIZATIONS_COLLECTION));
 
-  return onSnapshot(organizationsQuery, (snapshot) => {
-    const organizations = snapshot.docs
-      .map((entry) => mapOrganization(entry.id, entry.data() as Record<string, unknown>))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    onUpdate(organizations);
-  });
+  return onSnapshot(
+    organizationsQuery,
+    (snapshot) => {
+      const organizations = snapshot.docs
+        .map((entry) => mapOrganization(entry.id, entry.data() as Record<string, unknown>))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      onUpdate(organizations);
+    },
+    (error) => {
+      if (onError) {
+        onError(error);
+        return;
+      }
+      console.error('Failed to subscribe to organizations:', error);
+    },
+  );
 }
 
 export async function createOrganization(
@@ -383,6 +394,7 @@ export async function getLeaderboard(
 export function subscribeToLeaderboard(
   organizationId: string,
   onUpdate: (entries: LeaderboardEntry[]) => void,
+  onError?: (error: Error) => void,
   limitCount = 100,
 ) {
   const leaderboardQuery = query(
@@ -390,10 +402,20 @@ export function subscribeToLeaderboard(
     where('organizationId', '==', organizationId),
   );
 
-  return onSnapshot(leaderboardQuery, (snapshot) => {
-    const entries = snapshot.docs.map((entry) =>
-      mapLeaderboardEntry(entry.id, entry.data() as Record<string, unknown>),
-    );
-    onUpdate(sortAndTrimLeaderboard(entries, limitCount));
-  });
+  return onSnapshot(
+    leaderboardQuery,
+    (snapshot) => {
+      const entries = snapshot.docs.map((entry) =>
+        mapLeaderboardEntry(entry.id, entry.data() as Record<string, unknown>),
+      );
+      onUpdate(sortAndTrimLeaderboard(entries, limitCount));
+    },
+    (error) => {
+      if (onError) {
+        onError(error);
+        return;
+      }
+      console.error('Failed to subscribe to leaderboard:', error);
+    },
+  );
 }
