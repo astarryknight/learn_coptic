@@ -146,7 +146,9 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isSuperAdmin() || isOwner(userId) || sameOrganizationAsCurrentUser();
-      allow list: if isSuperAdmin() || sameOrganizationAsCurrentUser();
+      // Query evaluation for list can reject org-scoped conditions that depend on a dynamic get().
+      // Allow authenticated list reads so new users can reliably load leaderboard queries.
+      allow list: if isSuperAdmin() || isSignedIn();
       allow create: if validNewUserProfile(userId);
       allow update: if isSuperAdmin()
         || validOwnerUpdate(userId)
