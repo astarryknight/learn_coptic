@@ -174,13 +174,13 @@ export function WordBuilderActivity({ onComplete, onBack }: WordBuilderActivityP
 
           <div className="mb-4 md:mb-5">
             <div className="text-sm font-semibold text-slate-600 mb-2">Your answer</div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-3">
+            <div className="flex items-center justify-start sm:justify-center gap-1.5 md:gap-2 overflow-x-auto pb-1">
               {Array.from({ length: correctParts.length }).map((_, index) => {
                 const selected = selectedTokens[index];
                 return (
                   <div
                     key={index}
-                    className={`h-11 md:h-12 rounded-lg border-2 flex items-center justify-center text-sm md:text-base font-bold ${
+                    className={`w-10 h-9 md:w-12 md:h-10 rounded-md border-2 flex-shrink-0 flex items-center justify-center text-xs md:text-sm font-bold ${
                       selected ? 'bg-slate-50 border-slate-400 text-slate-800' : 'bg-white border-dashed border-slate-300 text-slate-400'
                     }`}
                   >
