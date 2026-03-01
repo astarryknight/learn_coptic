@@ -174,7 +174,7 @@ export function WordBuilderActivity({ onComplete, onBack }: WordBuilderActivityP
 
           <div className="mb-4 md:mb-5">
             <div className="text-sm font-semibold text-slate-600 mb-2">Your answer</div>
-            <div className="flex items-center justify-start sm:justify-center gap-1.5 md:gap-2 overflow-x-auto pb-1">
+            <div className="flex items-center justify-center gap-1.5 md:gap-2 overflow-x-auto pb-1">
               {Array.from({ length: correctParts.length }).map((_, index) => {
                 const selected = selectedTokens[index];
                 return (
