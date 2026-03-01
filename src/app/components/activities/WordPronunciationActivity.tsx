@@ -69,14 +69,7 @@ export function WordPronunciationActivity({ onComplete, onBack }: WordPronunciat
 
   if (!currentWord) return null;
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy': return 'bg-green-100 text-green-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'hard': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const formatPronunciation = (value: string) => value.replace(/\s+/g, '');
 
   return (
     <div className="min-h-screen bg-slate-100 p-3 md:p-6">
@@ -143,7 +136,7 @@ export function WordPronunciationActivity({ onComplete, onBack }: WordPronunciat
                 } ${selectedAnswer !== null ? 'cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="break-all text-left">{option}</span>
+                  <span className="break-all text-left">{formatPronunciation(option)}</span>
                   {selectedAnswer === option && (
                     <div className="ml-2 flex-shrink-0">
                       {isCorrect ? (
@@ -170,8 +163,8 @@ export function WordPronunciationActivity({ onComplete, onBack }: WordPronunciat
                 {isCorrect ? '🎉 Excellent!' : '❌ Try again!'}
               </p>
               {!isCorrect && (
-                <p className="text-sm mt-1 break-all">
-                  The correct pronunciation is: <strong>{currentWord.pronunciation}</strong>
+                  <p className="text-sm mt-1 break-all">
+                  The correct pronunciation is: <strong>{formatPronunciation(currentWord.pronunciation)}</strong>
                 </p>
               )}
             </motion.div>

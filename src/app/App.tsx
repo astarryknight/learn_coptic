@@ -8,6 +8,7 @@ import { OrganizationSelector } from './components/OrganizationSelector';
 import { LetterSoundsActivity } from './components/activities/LetterSoundsActivity';
 import { WordPronunciationActivity } from './components/activities/WordPronunciationActivity';
 import { LetterRecognitionActivity } from './components/activities/LetterRecognitionActivity';
+import { WordBuilderActivity } from './components/activities/WordBuilderActivity';
 import { CompletionScreen } from './components/CompletionScreen';
 import { Leaderboard } from './components/Leaderboard';
 import {
@@ -228,6 +229,8 @@ export default function App() {
         return <WordPronunciationActivity {...commonProps} />;
       case 'letter-recognition':
         return <LetterRecognitionActivity {...commonProps} />;
+      case 'word-builder':
+        return <WordBuilderActivity {...commonProps} />;
       default:
         return null;
     }

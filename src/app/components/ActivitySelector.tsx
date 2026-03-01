@@ -1,7 +1,7 @@
-import { BookOpen, Volume2, Eye, Award } from 'lucide-react';
+import { BookOpen, Volume2, Eye, Puzzle, Award } from 'lucide-react';
 import { Card } from './ui/card';
 
-export type ActivityType = 'letter-sounds' | 'word-pronunciation' | 'letter-recognition';
+export type ActivityType = 'letter-sounds' | 'word-pronunciation' | 'letter-recognition' | 'word-builder';
 
 interface ActivitySelectorProps {
   onSelectActivity: (activity: ActivityType) => void;
@@ -33,6 +33,14 @@ export function ActivitySelector({ onSelectActivity }: ActivitySelectorProps) {
       color: 'from-purple-400 to-purple-600',
       xp: '+10 XP per round',
     },
+    {
+      id: 'word-builder' as ActivityType,
+      title: 'Word Builder',
+      description: 'Build the correct sound order for each word',
+      icon: Puzzle,
+      color: 'from-amber-400 to-orange-500',
+      xp: '+15 XP per round',
+    },
   ];
 
   return (
@@ -47,7 +55,7 @@ export function ActivitySelector({ onSelectActivity }: ActivitySelectorProps) {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           {activities.map((activity) => {
             const Icon = activity.icon;
             return (
