@@ -53,9 +53,18 @@ export const copticWords: CopticWord[] = [
   { coptic: 'ϩⲏⲧ', english: 'heart', pronunciation: 'h ee t', difficulty: 'easy' },
   { coptic: 'ⲙⲁ', english: 'place', pronunciation: 'm a', difficulty: 'easy' },
   { coptic: 'ⲛⲁⲛ', english: 'us', pronunciation: 'n a n', difficulty: 'easy' },
+  { coptic: 'ⲛⲁⲓ', english: 'mercy', pronunciation: 'n a i', difficulty: 'easy' },
   { coptic: 'ϧⲉⲛ', english: 'in', pronunciation: 'kh e n', difficulty: 'easy' },
   { coptic: 'ⲛ̀ⲧⲉ', english: 'of', pronunciation: 'en t e', difficulty: 'easy' },
   { coptic: 'ⲫⲁⲓ', english: 'this', pronunciation: 'f a i', difficulty: 'easy' },
+  { coptic: 'ϫⲟⲙ', english: 'power', pronunciation: 'g o m', difficulty: 'easy' },
+  { coptic: 'ⲛⲉⲙ', english: 'and', pronunciation: 'n e m', difficulty: 'easy' },
+  { coptic: 'ϩⲱⲥ', english: 'praise', pronunciation: 'h o o s', difficulty: 'easy' },
+  { coptic: 'ⲗⲁⲥ', english: 'tongue', pronunciation: 'l a s', difficulty: 'easy' },
+  { coptic: 'ϫⲓϫ', english: 'hand', pronunciation: 'j i j', difficulty: 'easy' },
+  { coptic: 'ⲱⲟⲩ', english: 'glory', pronunciation: 'ou o u', difficulty: 'easy' },
+  { coptic: 'ⲣⲁⲛ', english: 'name', pronunciation: 'r a n', difficulty: 'easy' },
+  { coptic: 'ⲙⲁⲩ', english: 'name', pronunciation: 'm a v', difficulty: 'easy' },
 
   // Medium words (4-5 letters)
   { coptic: 'ⲛⲟⲩϯ', english: 'God', pronunciation: 'n o u tee', difficulty: 'medium' },
@@ -68,12 +77,32 @@ export const copticWords: CopticWord[] = [
   { coptic: 'ⲁⲝⲓⲟⲥ', english: 'worth', pronunciation: 'a x ee o s', difficulty: 'medium' },
   { coptic: 'ⲉϩⲟⲟⲩ', english: 'day', pronunciation: 'e h o o u', difficulty: 'medium' },
   { coptic: 'ⲣⲟⲙⲡⲓ', english: 'year', pronunciation: 'r o m p i', difficulty: 'medium' },
+  { coptic: 'ⲯⲩⲭⲏ', english: 'soul', pronunciation: 'ps e kh ee', difficulty: 'medium' },
+  { coptic: 'ⲣⲱⲙⲓ', english: 'human', pronunciation: 'r ou m i', difficulty: 'medium' },
+  { coptic: 'ⲥ̀ⲙⲟⲩ', english: 'bless', pronunciation: 'es m o u', difficulty: 'medium' },
+  { coptic: 'ⲕⲁⲧⲁ', english: 'according to', pronunciation: 'k a t a', difficulty: 'medium' },
+  { coptic: 'ⲥⲁϫⲓ', english: 'word', pronunciation: 's a j i', difficulty: 'medium' },
+  { coptic: 'ⲛⲟⲙⲟⲥ', english: 'law', pronunciation: 'n o m o s', difficulty: 'medium' },
+  { coptic: 'ϭⲟⲓⲥ', english: 'lord', pronunciation: 'ch o i s', difficulty: 'medium' },
+  { coptic: 'ⲧⲏⲣⲟⲩ', english: 'all', pronunciation: 't ee r o u', difficulty: 'medium' },
+  { coptic: 'ⲛⲟⲩϯ', english: 'god', pronunciation: 'n o u tee', difficulty: 'medium' },
+  { coptic: 'ⲥⲱⲛⲓ', english: 'sister', pronunciation: 's ou n i', difficulty: 'medium' },
+  { coptic: 'ϣⲁϣϥ', english: 'seven', pronunciation: 'sh a sh f', difficulty: 'medium' },
+  { coptic: 'ϩⲙⲟⲧ', english: 'grace', pronunciation: 'eh m o t', difficulty: 'medium' },
+  { coptic: 'ⲣⲁϣⲓ', english: 'joy', pronunciation: 'r a sh i', difficulty: 'medium' },
+  { coptic: 'ⲑ̀ⲙⲏⲓ', english: 'true', pronunciation: 'eth m ee i', difficulty: 'medium' },
+  { coptic: 'ⲟⲩⲣⲟ', english: 'king', pronunciation: 'o u r o', difficulty: 'medium' },
+  { coptic: 'ϣⲫⲉⲣⲓ', english: 'friend', pronunciation: 'esh v e r i', difficulty: 'medium' },
+
 
   // Hard words (6+ letters)
   { coptic: 'ϩⲓⲣⲏⲛⲏ', english: 'peace', pronunciation: 'h ee r ee n ee', difficulty: 'hard' },
   { coptic: 'ⲙⲉⲧⲁⲛⲟⲓⲁ', english: 'repentance', pronunciation: 'm e t a n o i a', difficulty: 'hard' },
   { coptic: 'ⲉⲑⲟⲩⲁⲃ', english: 'holy', pronunciation: 'e th o u a b', difficulty: 'hard' },
   { coptic: 'ⲉⲕⲕⲗⲏⲥⲓⲁ', english: 'church', pronunciation: 'e k k l ee s i a', difficulty: 'hard' },
+  { coptic: 'ⲟⲩⲱⲓⲛⲓ', english: 'light', pronunciation: 'o u ou i n i', difficulty: 'hard' },
+  { coptic: 'ⲟⲩⲱϣⲧ', english: 'worship', pronunciation: 'o u ou sh t', difficulty: 'hard' },
+
 ];
 
 // Helper function to get random items
